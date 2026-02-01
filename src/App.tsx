@@ -12,6 +12,7 @@ import { Login } from '@/pages/Login';
 import { Dashboard } from '@/pages/Dashboard';
 import { MapPage } from '@/pages/MapPage';
 import { Customers } from '@/pages/Customers';
+import { Sales } from '@/pages/Sales';
 import { Projects } from '@/pages/Projects';
 import { Visits } from '@/pages/Visits';
 import { Team } from '@/pages/Team';
@@ -143,6 +144,14 @@ function AppContent() {
         element={
           <ProtectedRoute>
             <Customers />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/sales"
+        element={
+          <ProtectedRoute>
+            <Sales />
           </ProtectedRoute>
         }
       />

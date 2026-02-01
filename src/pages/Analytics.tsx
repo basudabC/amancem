@@ -181,8 +181,9 @@ export function Analytics() {
     const projectCustomers = customersData.filter((c: any) => c.pipeline === 'one_time').length;
 
     const totalConversions = conversionsData.length;
-    const totalOrderValue = conversionsData.reduce((sum: number, c: any) => sum + (c.order_value || 0), 0);
-    const totalVolume = conversionsData.reduce((sum: number, c: any) => sum + (c.order_volume || 0), 0);
+    // Fix: Use total_value/quantity_bags (new columns) with fallback to order_value/order_volume (legacy)
+    const totalOrderValue = conversionsData.reduce((sum: number, c: any) => sum + (c.total_value || c.order_value || 0), 0);
+    const totalVolume = conversionsData.reduce((sum: number, c: any) => sum + (c.quantity_bags || c.order_volume || 0), 0);
 
     // Calculate conversion rate
     const uniqueVisitedCustomers = new Set(visitsData.map((v: any) => v.customer_id)).size;
@@ -290,7 +291,8 @@ export function Analytics() {
     conversionsData.forEach((c: any) => {
       if (performerStats[c.converted_by]) {
         performerStats[c.converted_by].conversions++;
-        performerStats[c.converted_by].value += c.order_value || 0;
+        // Fix: Use total_value first, fallback to order_value
+        performerStats[c.converted_by].value += c.total_value || c.order_value || 0;
       }
     });
 
@@ -559,9 +561,9 @@ export function Analytics() {
                 <tr key={index} className="hover:bg-white/5">
                   <td className="px-4 py-3">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${index === 0 ? 'bg-[#D4A843] text-white' :
-                        index === 1 ? 'bg-[#8B9CB8] text-white' :
-                          index === 2 ? 'bg-[#4A5B7A] text-white' :
-                            'bg-[#0F3460] text-[#8B9CB8]'
+                      index === 1 ? 'bg-[#8B9CB8] text-white' :
+                        index === 2 ? 'bg-[#4A5B7A] text-white' :
+                          'bg-[#0F3460] text-[#8B9CB8]'
                       }`}>
                       {index + 1}
                     </div>

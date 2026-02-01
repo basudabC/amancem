@@ -5,20 +5,30 @@
 import { useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useCustomers } from '@/hooks/useCustomers';
+import { useCustomerRecentSales } from '@/hooks/useConversions';
+import { CustomerForm } from '@/components/CustomerForm';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Plus, 
-  Search, 
-  MapPin, 
-  Phone, 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Plus,
+  Search,
+  MapPin,
+  Phone,
   User,
   Store,
   Building2,
-  Filter
+  Filter,
+  TrendingUp,
 } from 'lucide-react';
 import type { Customer } from '@/types';
 
@@ -26,8 +36,11 @@ export function Customers() {
   const { user } = useAuthStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('recurring');
+  const [showCustomerForm, setShowCustomerForm] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
 
-  const { data: customers, isLoading } = useCustomers({
+  const { data: customers, isLoading, refetch } = useCustomers({
     salesRepId: user?.role === 'sales_rep' ? user.id : undefined,
     pipeline: activeTab as 'recurring' | 'one_time',
     status: 'active',
@@ -35,9 +48,28 @@ export function Customers() {
 
   const filteredCustomers = customers?.filter((customer: Customer) =>
     customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    customer.area?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    customer.address?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     customer.phone?.includes(searchQuery)
   );
+
+  const handleViewDetails = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setShowDetails(true);
+  };
+
+  const handleEditCustomer = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setShowDetails(false);
+    setShowCustomerForm(true);
+  };
+
+  const handleFormSuccess = () => {
+    // Refetch data to update UI
+    refetch();
+    // Close both dialogs
+    setShowCustomerForm(false);
+    setShowDetails(false);
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -49,24 +81,48 @@ export function Customers() {
             Manage your customer base
           </p>
         </div>
-        <Button className="bg-[#C41E3A] hover:bg-[#9B1830]">
+        <Button
+          onClick={() => {
+            setSelectedCustomer(null);
+            setShowCustomerForm(true);
+          }}
+          className="bg-[#C41E3A] hover:bg-[#9B1830]"
+        >
           <Plus className="w-4 h-4 mr-2" />
           Add Customer
         </Button>
       </div>
 
+      {/* Customer Form Dialog */}
+      <CustomerForm
+        open={showCustomerForm}
+        onOpenChange={setShowCustomerForm}
+        customer={selectedCustomer}
+        onSuccess={handleFormSuccess}
+      />
+
+      {/* Customer Details Dialog */}
+      {selectedCustomer && (
+        <CustomerDetailsDialog
+          open={showDetails}
+          onOpenChange={setShowDetails}
+          customer={selectedCustomer}
+          onEdit={() => handleEditCustomer(selectedCustomer)}
+        />
+      )}
+
       {/* Tabs & Search */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="flex items-center justify-between">
           <TabsList className="bg-[#0A2A5C] border border-white/10">
-            <TabsTrigger 
+            <TabsTrigger
               value="recurring"
               className="data-[state=active]:bg-[#C41E3A] data-[state=active]:text-white"
             >
               <Store className="w-4 h-4 mr-2" />
               Recurring
             </TabsTrigger>
-            <TabsTrigger 
+            <TabsTrigger
               value="one_time"
               className="data-[state=active]:bg-[#C41E3A] data-[state=active]:text-white"
             >
@@ -92,18 +148,20 @@ export function Customers() {
         </div>
 
         <TabsContent value="recurring" className="mt-6">
-          <CustomersList 
-            customers={filteredCustomers} 
+          <CustomersList
+            customers={filteredCustomers}
             isLoading={isLoading}
             type="recurring"
+            onViewDetails={handleViewDetails}
           />
         </TabsContent>
 
         <TabsContent value="one_time" className="mt-6">
-          <CustomersList 
-            customers={filteredCustomers} 
+          <CustomersList
+            customers={filteredCustomers}
             isLoading={isLoading}
             type="project"
+            onViewDetails={handleViewDetails}
           />
         </TabsContent>
       </Tabs>
@@ -115,9 +173,10 @@ interface CustomersListProps {
   customers: Customer[] | undefined;
   isLoading: boolean;
   type: 'recurring' | 'project';
+  onViewDetails: (customer: Customer) => void;
 }
 
-function CustomersList({ customers, isLoading, type }: CustomersListProps) {
+function CustomersList({ customers, isLoading, type, onViewDetails }: CustomersListProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -135,8 +194,8 @@ function CustomersList({ customers, isLoading, type }: CustomersListProps) {
             No customers found
           </h3>
           <p className="text-[#8B9CB8] mb-4">
-            {type === 'recurring' 
-              ? 'Start by adding your first recurring customer' 
+            {type === 'recurring'
+              ? 'Start by adding your first recurring customer'
               : 'Start by adding your first project customer'}
           </p>
         </CardContent>
@@ -147,10 +206,8 @@ function CustomersList({ customers, isLoading, type }: CustomersListProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {customers.map((customer: Customer) => {
-        const pipelineData = customer.pipeline_data as any;
-        
         return (
-          <Card 
+          <Card
             key={customer.id}
             className="bg-[#0A2A5C] border-white/10 cursor-pointer hover:border-[#3A9EFF]/50 transition-colors"
           >
@@ -161,22 +218,21 @@ function CustomersList({ customers, isLoading, type }: CustomersListProps) {
                     {customer.name}
                   </CardTitle>
                   <p className="text-[#8B9CB8] text-sm mt-1">
-                    {customer.area || 'No area specified'}
+                    {customer.address || 'No address specified'}
                   </p>
                 </div>
-                <Badge 
+                <Badge
                   variant="outline"
-                  className={`text-xs ${
-                    customer.last_outcome === 'interested'
-                      ? 'border-[#2ECC71] text-[#2ECC71]'
-                      : customer.last_outcome === 'progressive'
+                  className={`text-xs ${customer.last_visit_outcome === 'interested'
+                    ? 'border-[#2ECC71] text-[#2ECC71]'
+                    : customer.last_visit_outcome === 'progressive'
                       ? 'border-[#3A9EFF] text-[#3A9EFF]'
-                      : customer.last_outcome === 'not_interested'
-                      ? 'border-[#E74C5E] text-[#E74C5E]'
-                      : 'border-[#8B9CB8] text-[#8B9CB8]'
-                  }`}
+                      : customer.last_visit_outcome === 'not_interested'
+                        ? 'border-[#E74C5E] text-[#E74C5E]'
+                        : 'border-[#8B9CB8] text-[#8B9CB8]'
+                    }`}
                 >
-                  {customer.last_outcome || 'New'}
+                  {customer.last_visit_outcome || 'New'}
                 </Badge>
               </div>
             </CardHeader>
@@ -196,52 +252,258 @@ function CustomersList({ customers, isLoading, type }: CustomersListProps) {
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <MapPin className="w-4 h-4 text-[#8B9CB8]" />
-                  <span className="text-[#8B9CB8]">
-                    {customer.territory_name}
+                  <span className="text-[#8B9CB8] text-xs font-mono">
+                    {customer.lat && customer.lng
+                      ? `${customer.lat.toFixed(4)}, ${customer.lng.toFixed(4)}`
+                      : 'No GPS data'}
                   </span>
                 </div>
 
                 {type === 'recurring' ? (
                   <div className="pt-2 mt-2 border-t border-white/10">
                     <div className="flex items-center justify-between">
-                      <span className="text-[#8B9CB8] text-xs">Monthly Volume</span>
+                      <span className="text-[#8B9CB8] text-sm">Monthly Volume</span>
                       <span className="text-[#2ECC71] font-semibold">
-                        {pipelineData?.monthly_sales?.reduce(
-                          (s: number, b: any) => s + (b.monthlySales || 0), 
-                          0
-                        ) || 0} tons
+                        {((customer.monthly_sales_advance || 0) +
+                          (customer.monthly_sales_advance_plus || 0) +
+                          (customer.monthly_sales_green || 0) +
+                          (customer.monthly_sales_basic || 0) +
+                          (customer.monthly_sales_classic || 0)).toFixed(1)} tons
                       </span>
                     </div>
                   </div>
                 ) : (
                   <div className="pt-2 mt-2 border-t border-white/10">
                     <div className="flex items-center justify-between">
-                      <span className="text-[#8B9CB8] text-xs">Construction</span>
+                      <span className="text-[#8B9CB8] text-sm">Cement Required</span>
                       <span className="text-[#D4A843] font-semibold">
-                        {pipelineData?.construction_stage_percent || 0}%
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-[#8B9CB8] text-xs">Cement Needed</span>
-                      <span className="text-[#2ECC71] font-semibold">
-                        {pipelineData?.cement_requirement_tons || 0} tons
+                        {customer.cement_required || 0} tons
                       </span>
                     </div>
                   </div>
                 )}
+
+                {/* Last 30 Days Sales */}
+                <CustomerSalesInfo customerId={customer.id} />
               </div>
 
-              <Button 
-                variant="ghost" 
-                size="sm"
-                className="w-full mt-4 text-[#3A9EFF] hover:text-[#F0F4F8] hover:bg-[#3A9EFF]/10"
-              >
-                View Details
-              </Button>
+              <div className="flex gap-2 mt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onViewDetails(customer)}
+                  className="flex-1 border-white/10 text-[#8B9CB8] hover:text-[#F0F4F8]"
+                >
+                  View Details
+                </Button>
+              </div>
             </CardContent>
           </Card>
         );
       })}
     </div>
+  );
+}
+
+// Customer Sales Info Component (Last 30 Days)
+function CustomerSalesInfo({ customerId }: { customerId: string }) {
+  const { user } = useAuthStore();
+  const { summary, isLoading, data, error } = useCustomerRecentSales(customerId);
+
+  // Debug logging
+  console.log('CustomerSalesInfo: Rendering for customer:', customerId);
+  console.log('CustomerSalesInfo: User authenticated:', !!user, user);
+  console.log('CustomerSalesInfo Debug:', {
+    customerId,
+    isLoading,
+    hasData: !!data,
+    dataLength: data?.length,
+    summary,
+    error
+  });
+
+  if (isLoading) {
+    return (
+      <div className="pt-2 mt-2 border-t border-white/10">
+        <div className="text-[#8B9CB8] text-xs">Loading sales...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    console.error('Error loading customer sales:', error);
+    return null;
+  }
+
+  if (summary.total_count === 0) {
+    console.log('No sales found for customer:', customerId);
+    return null; // Don't show if no sales
+  }
+
+  return (
+    <div className="pt-2 mt-2 border-t border-white/10">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5">
+          <TrendingUp className="w-3.5 h-3.5 text-[#2ECC71]" />
+          <span className="text-[#8B9CB8] text-xs">Last 30 Days Sales</span>
+        </div>
+        <span className="text-[#8B9CB8] text-xs">
+          {summary.total_count} sale{summary.total_count > 1 ? 's' : ''}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <div className="text-[#8B9CB8] text-xs">Total Value</div>
+          <div className="text-[#2ECC71] font-semibold text-sm">
+            {summary.total_value.toLocaleString()} Tk
+          </div>
+        </div>
+        <div>
+          <div className="text-[#8B9CB8] text-xs">Total Bags</div>
+          <div className="text-[#3A9EFF] font-semibold text-sm">
+            {summary.total_volume.toFixed(0)} bags
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Customer Details Dialog Component
+interface CustomerDetailsDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  customer: Customer;
+  onEdit: () => void;
+}
+
+function CustomerDetailsDialog({ open, onOpenChange, customer, onEdit }: CustomerDetailsDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[#061A3A] border-white/10">
+        <DialogHeader>
+          <DialogTitle className="text-[#F0F4F8] text-2xl">{customer.name}</DialogTitle>
+          <DialogDescription className="text-[#8B9CB8]">
+            {customer.pipeline === 'recurring' ? 'Recurring Shop' : 'Project Customer'}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Basic Info */}
+          <Card className="bg-[#0A2A5C] border-white/10">
+            <CardHeader>
+              <CardTitle className="text-[#F0F4F8]">Basic Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[#8B9CB8] text-sm">Owner Name</p>
+                  <p className="text-[#F0F4F8]">{customer.owner_name || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-[#8B9CB8] text-sm">Phone</p>
+                  <p className="text-[#F0F4F8]">{customer.phone || 'N/A'}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-[#8B9CB8] text-sm">Address</p>
+                  <p className="text-[#F0F4F8]">{customer.address || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-[#8B9CB8] text-sm">GPS Latitude</p>
+                  <p className="text-[#F0F4F8] font-mono text-xs">{customer.lat?.toFixed(6) || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-[#8B9CB8] text-sm">GPS Longitude</p>
+                  <p className="text-[#F0F4F8] font-mono text-xs">{customer.lng?.toFixed(6) || 'N/A'}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Recurring Shop Details */}
+          {customer.pipeline === 'recurring' && (
+            <Card className="bg-[#0A2A5C] border-white/10">
+              <CardHeader>
+                <CardTitle className="text-[#F0F4F8]">Shop Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <p className="text-[#8B9CB8] text-sm mb-2">Monthly Sales (tons)</p>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    {customer.monthly_sales_advance && (
+                      <div>Advance: <span className="text-[#2ECC71]">{customer.monthly_sales_advance}</span></div>
+                    )}
+                    {customer.monthly_sales_basic && (
+                      <div>Basic: <span className="text-[#2ECC71]">{customer.monthly_sales_basic}</span></div>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[#8B9CB8] text-sm">Credit Practice</p>
+                  <p className="text-[#F0F4F8]">
+                    {customer.credit_practice || 'N/A'}
+                    {customer.credit_days && ` (${customer.credit_days} days)`}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Project Details */}
+          {customer.pipeline === 'one_time' && (
+            <Card className="bg-[#0A2A5C] border-white/10">
+              <CardHeader>
+                <CardTitle className="text-[#F0F4F8]">Project Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-[#8B9CB8] text-sm">Built-up Area</p>
+                    <p className="text-[#F0F4F8]">{customer.built_up_area || 0} sqft</p>
+                  </div>
+                  <div>
+                    <p className="text-[#8B9CB8] text-sm">Floors</p>
+                    <p className="text-[#F0F4F8]">{customer.number_of_floors || 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-[#8B9CB8] text-sm">Structure Type</p>
+                    <p className="text-[#F0F4F8]">{customer.structure_type || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[#8B9CB8] text-sm">Construction Stage</p>
+                    <p className="text-[#D4A843] font-semibold">{customer.construction_stage || 0}%</p>
+                  </div>
+                  <div>
+                    <p className="text-[#8B9CB8] text-sm">Cement Required</p>
+                    <p className="text-[#2ECC71] font-semibold">{customer.cement_required || 0} tons</p>
+                  </div>
+                  <div>
+                    <p className="text-[#8B9CB8] text-sm">Cement Remaining</p>
+                    <p className="text-[#2ECC71] font-semibold">{customer.cement_remaining || 0} tons</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Actions */}
+          <div className="flex justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="border-white/10 text-[#8B9CB8]"
+            >
+              Close
+            </Button>
+            <Button
+              onClick={onEdit}
+              className="bg-[#3A9EFF] hover:bg-[#2D7FCC]"
+            >
+              Edit Customer
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

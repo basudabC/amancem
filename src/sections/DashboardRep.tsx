@@ -5,9 +5,11 @@
 import { useAuthStore } from '@/store/authStore';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useTodayVisits } from '@/hooks/useVisits';
+import { useSalesSummary } from '@/hooks/useConversions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { useMemo } from 'react';
 import {
   Route,
   MapPin,
@@ -15,7 +17,9 @@ import {
   CheckCircle2,
   AlertCircle,
   Target,
-  Flame
+  Flame,
+  DollarSign,
+  Package,
 } from 'lucide-react';
 
 export function DashboardRep() {
@@ -27,6 +31,32 @@ export function DashboardRep() {
   });
 
   const { data: todayVisits, isLoading: visitsLoading } = useTodayVisits(user?.id);
+
+  // Sales data - today and this month
+  const { todayStr, startOfMonthStr } = useMemo(() => {
+    const now = new Date();
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+    return {
+      todayStr: today.toISOString(),
+      startOfMonthStr: startOfMonth.toISOString()
+    };
+  }, []);
+
+  const { summary: todaySales } = useSalesSummary({
+    salesRepId: user?.role === 'sales_rep' ? user?.id : undefined,
+    includeTeam: user?.role !== 'sales_rep',
+    dateFrom: todayStr,
+  });
+
+  const { summary: monthlySales } = useSalesSummary({
+    salesRepId: user?.role === 'sales_rep' ? user?.id : undefined,
+    includeTeam: user?.role !== 'sales_rep',
+    dateFrom: startOfMonthStr,
+  });
 
   const visitsDone = todayVisits?.filter(v => v.completed).length || 0;
   const visitsTarget = 8; // Daily target
@@ -63,33 +93,33 @@ export function DashboardRep() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
+          icon={<DollarSign className="w-5 h-5" />}
+          label="Today's Sales"
+          value={`${todaySales.total_value.toLocaleString()} Tk`}
+          subtext={`${todaySales.total_count} sale${todaySales.total_count !== 1 ? 's' : ''}`}
+          color="#2ECC71"
+        />
+        <StatCard
+          icon={<TrendingUp className="w-5 h-5" />}
+          label="Monthly Sales"
+          value={`${monthlySales.total_value.toLocaleString()} Tk`}
+          subtext={`${monthlySales.total_count} conversions`}
+          color="#3A9EFF"
+        />
+        <StatCard
           icon={<CheckCircle2 className="w-5 h-5" />}
           label="Visits Completed"
           value={`${visitsDone}/${visitsTarget}`}
           subtext={`${Math.round(visitProgress)}% of daily target`}
-          color="#2ECC71"
+          color="#D4A843"
           progress={visitProgress}
         />
         <StatCard
-          icon={<MapPin className="w-5 h-5" />}
-          label="Total Customers"
-          value={customers?.length || 0}
-          subtext="Active in your territory"
-          color="#3A9EFF"
-        />
-        <StatCard
-          icon={<Flame className="w-5 h-5" />}
-          label="Hot Prospects"
-          value={hotProspects.length}
-          subtext="Interested & ready to convert"
+          icon={<Package className="w-5 h-5" />}
+          label="Total Volume"
+          value={`${monthlySales.total_volume.toFixed(1)} bags`}
+          subtext="This month"
           color="#FF7C3A"
-        />
-        <StatCard
-          icon={<Target className="w-5 h-5" />}
-          label="Conversion Rate"
-          value="24%"
-          subtext="+3% from last week"
-          color="#D4A843"
         />
       </div>
 
@@ -128,8 +158,8 @@ export function DashboardRep() {
                     </div>
                     <div
                       className={`px-2 py-1 rounded text-xs font-medium ${visit.completed
-                          ? 'bg-[#2ECC71]/20 text-[#2ECC71]'
-                          : 'bg-[#FF7C3A]/20 text-[#FF7C3A]'
+                        ? 'bg-[#2ECC71]/20 text-[#2ECC71]'
+                        : 'bg-[#FF7C3A]/20 text-[#FF7C3A]'
                         }`}
                     >
                       {visit.completed ? 'Done' : 'Pending'}

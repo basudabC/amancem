@@ -21,6 +21,7 @@ import {
   LogOut,
   Shield,
   UserCog,
+  DollarSign,
 } from 'lucide-react';
 
 interface NavItem {
@@ -34,6 +35,7 @@ const navItems: NavItem[] = [
   { path: '/', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'country_head'] },
   { path: '/map', label: 'Territory Map', icon: <Map className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'country_head'] },
   { path: '/customers', label: 'Customers', icon: <Store className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'country_head'] },
+  { path: '/sales', label: 'Sales', icon: <DollarSign className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'country_head'] },
   { path: '/projects', label: 'Projects', icon: <Building2 className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'country_head'] },
   { path: '/routes', label: 'My Routes', icon: <Route className="w-5 h-5" />, roles: ['sales_rep'] },
   { path: '/visits', label: 'Visits', icon: <CalendarCheck className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'country_head'] },
