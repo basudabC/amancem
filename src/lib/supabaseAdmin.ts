@@ -1,0 +1,28 @@
+// ============================================================
+// SUPABASE ADMIN CLIENT
+// Uses service role key for admin operations
+// ============================================================
+
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseServiceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl) {
+    throw new Error('Missing VITE_SUPABASE_URL environment variable');
+}
+
+if (!supabaseServiceRoleKey) {
+    console.warn('Missing VITE_SUPABASE_SERVICE_ROLE_KEY - admin features will be limited');
+}
+
+// Admin client with service role privileges
+// ONLY use this for admin operations like creating users
+export const supabaseAdmin = supabaseServiceRoleKey
+    ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+        auth: {
+            autoRefreshToken: false,
+            persistSession: false
+        }
+    })
+    : null;
