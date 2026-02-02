@@ -7,7 +7,7 @@ import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
-import { 
+import {
   Settings as SettingsIcon,
   User,
   Bell,
@@ -41,7 +41,7 @@ function ProfileSection() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
-    full_name: user?.name || '',
+    full_name: user?.full_name || '',
     phone: '',
     email: user?.email || '',
   });
@@ -96,11 +96,11 @@ function ProfileSection() {
     mutationFn: async (file: File) => {
       const fileExt = file.name.split('.').pop();
       const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
-      
+
       const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(fileName, file);
-      
+
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
@@ -403,13 +403,11 @@ function NotificationsSection() {
           </div>
           <button
             onClick={() => toggleSetting(item.key as any)}
-            className={`relative w-12 h-6 rounded-full transition-colors ${
-              settings[item.key as keyof typeof settings] ? 'bg-[#2ECC71]' : 'bg-[#4A5B7A]'
-            }`}
+            className={`relative w-12 h-6 rounded-full transition-colors ${settings[item.key as keyof typeof settings] ? 'bg-[#2ECC71]' : 'bg-[#4A5B7A]'
+              }`}
           >
-            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-              settings[item.key as keyof typeof settings] ? 'left-7' : 'left-1'
-            }`} />
+            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${settings[item.key as keyof typeof settings] ? 'left-7' : 'left-1'
+              }`} />
           </button>
         </div>
       ))}
@@ -436,13 +434,11 @@ function PreferencesSection() {
         </div>
         <button
           onClick={() => setDarkMode(!darkMode)}
-          className={`relative w-12 h-6 rounded-full transition-colors ${
-            darkMode ? 'bg-[#9B6BFF]' : 'bg-[#4A5B7A]'
-          }`}
+          className={`relative w-12 h-6 rounded-full transition-colors ${darkMode ? 'bg-[#9B6BFF]' : 'bg-[#4A5B7A]'
+            }`}
         >
-          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-            darkMode ? 'left-7' : 'left-1'
-          }`} />
+          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${darkMode ? 'left-7' : 'left-1'
+            }`} />
         </button>
       </div>
 
@@ -579,11 +575,10 @@ export function Settings() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
-              activeTab === tab.id
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${activeTab === tab.id
                 ? 'border-[#C41E3A] text-[#F0F4F8]'
                 : 'border-transparent text-[#8B9CB8] hover:text-[#F0F4F8]'
-            }`}
+              }`}
           >
             <tab.icon className="w-4 h-4" />
             {tab.label}

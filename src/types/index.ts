@@ -88,6 +88,20 @@ export interface Territory {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  boundary?: any; // For compatibility
+  color_key?: string;
+  level?: string;
+  parent_id?: string;
+}
+
+export interface GPSValidationResult {
+  isValid: boolean;
+  distance: number;
+  message?: string;
+}
+
+export interface ProjectCustomerData extends CustomerFormData {
+  // Extended fields for project specific logic if needed
 }
 
 

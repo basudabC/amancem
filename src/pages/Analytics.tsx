@@ -7,6 +7,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
+import { toast } from 'sonner';
 import { startOfMonth } from 'date-fns';
 
 export function Analytics() {

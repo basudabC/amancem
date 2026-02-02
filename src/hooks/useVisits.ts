@@ -94,8 +94,10 @@ export const useTodayVisits = (salesRepId?: string, includeTeam: boolean = false
         outcome: item.outcome,
         note: item.note,
         voice_memo_url: item.voice_memo_url,
-        completed: item.completed,
+        completed: item.status === 'completed',
+        status: item.status || 'in_progress',
         created_at: item.created_at,
+        updated_at: item.created_at, // Fallback if missing
         customer_name: item.customers?.name,
         customer_pipeline: item.customers?.pipeline,
         // Map available coordinates
@@ -142,8 +144,10 @@ export const useVisitsByDateRange = (
         outcome: item.outcome,
         note: item.note,
         voice_memo_url: item.voice_memo_url,
-        completed: item.completed,
+        completed: item.status === 'completed',
+        status: item.status || 'in_progress',
         created_at: item.created_at,
+        updated_at: item.created_at,
         customer_name: item.customers?.name,
         customer_pipeline: item.customers?.pipeline,
       })) as Visit[];
