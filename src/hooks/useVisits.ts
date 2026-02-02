@@ -37,7 +37,7 @@ export function validateCheckIn(
   speed?: number
 ): { valid: boolean; distance: number; message?: string } {
   const distance = calculateDistance(customerLat, customerLng, checkInLat, checkInLng);
-  
+
   // Check distance
   if (distance > MAP_CONFIG.checkInRadius) {
     return {
@@ -46,7 +46,7 @@ export function validateCheckIn(
       message: `You are ${Math.round(distance)} meters away from the customer location. Must be within ${MAP_CONFIG.checkInRadius} meters.`,
     };
   }
-  
+
   // Check speed (anti-fake)
   if (speed !== undefined && speed > MAP_CONFIG.maxCheckInSpeed) {
     return {
@@ -55,28 +55,32 @@ export function validateCheckIn(
       message: `Cannot check in while moving at ${Math.round(speed)} km/h. Please stop and try again.`,
     };
   }
-  
+
   return { valid: true, distance };
 }
 
-// Fetch today's visits for a sales rep
-export const useTodayVisits = (salesRepId?: string) => {
+// Fetch today's visits (for single rep OR team based on RLS)
+export const useTodayVisits = (salesRepId?: string, includeTeam: boolean = false) => {
   return useQuery({
-    queryKey: ['today-visits', salesRepId],
+    queryKey: ['today-visits', salesRepId, includeTeam],
     queryFn: async (): Promise<Visit[]> => {
-      if (!salesRepId) return [];
-      
       const today = new Date().toISOString().split('T')[0];
-      
-      const { data, error } = await supabase
+
+      let query = supabase
         .from('visits')
         .select(`
           *,
-          customers:customer_id (name, pipeline, latitude, longitude)
+          customers:customer_id (name, pipeline, lat, lng)
         `)
-        .eq('sales_rep_id', salesRepId)
         .gte('created_at', today)
         .order('created_at', { ascending: false });
+
+      if (salesRepId) {
+        query = query.eq('sales_rep_id', salesRepId);
+      }
+      // If no salesRepId provided, RLS handles visibility (e.g. for supervisors seeing team)
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -94,9 +98,13 @@ export const useTodayVisits = (salesRepId?: string) => {
         created_at: item.created_at,
         customer_name: item.customers?.name,
         customer_pipeline: item.customers?.pipeline,
+        // Map available coordinates
+        customer_lat: item.customers?.lat || item.customers?.latitude,
+        customer_lng: item.customers?.lng || item.customers?.longitude,
       })) as Visit[];
     },
-    enabled: !!salesRepId,
+    // Enabled if salesRepId is provided OR includeTeam is true
+    enabled: !!salesRepId || includeTeam,
   });
 };
 
@@ -110,7 +118,7 @@ export const useVisitsByDateRange = (
     queryKey: ['visits-range', salesRepId, startDate, endDate],
     queryFn: async (): Promise<Visit[]> => {
       if (!salesRepId || !startDate || !endDate) return [];
-      
+
       const { data, error } = await supabase
         .from('visits')
         .select(`
@@ -209,21 +217,21 @@ export const useCompleteVisit = () => {
         .single();
 
       if (error) throw error;
-      
+
       // Update customer's last outcome
       const { data: visit } = await supabase
         .from('visits')
         .select('customer_id')
         .eq('id', visitId)
         .single();
-        
+
       if (visit) {
         await supabase
           .from('customers')
           .update({ last_outcome: outcome })
           .eq('id', (visit as any).customer_id);
       }
-      
+
       return data;
     },
     onSuccess: () => {

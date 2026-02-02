@@ -3,7 +3,7 @@
 // Team management for supervisors and managers
 // ============================================================
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
@@ -76,10 +76,20 @@ function TeamMemberModal({
 }) {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
+
+  // Determine which roles can be assigned based on current user's role
+  const availableRoles = useMemo(() => {
+    if (user?.role === 'country_head') return roles;
+    if (user?.role === 'regional_manager') return roles.filter(r => ['sales_rep', 'supervisor', 'area_manager'].includes(r.value));
+    if (user?.role === 'area_manager') return roles.filter(r => ['sales_rep', 'supervisor'].includes(r.value));
+    if (user?.role === 'supervisor') return roles.filter(r => r.value === 'sales_rep');
+    return [];
+  }, [user?.role]);
+
   const [formData, setFormData] = useState<TeamFormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useState(() => {
+  useEffect(() => {
     if (member) {
       setFormData({
         full_name: member.full_name || '',
@@ -93,7 +103,7 @@ function TeamMemberModal({
     } else {
       setFormData(initialFormData);
     }
-  });
+  }, [member]);
 
   const saveMember = useMutation({
     mutationFn: async (data: TeamFormData) => {
@@ -161,15 +171,6 @@ function TeamMemberModal({
   };
 
   if (!isOpen) return null;
-
-  // Determine which roles can be assigned based on current user's role
-  const availableRoles = useMemo(() => {
-    if (user?.role === 'country_head') return roles;
-    if (user?.role === 'regional_manager') return roles.filter(r => ['sales_rep', 'supervisor', 'area_manager'].includes(r.value));
-    if (user?.role === 'area_manager') return roles.filter(r => ['sales_rep', 'supervisor'].includes(r.value));
-    if (user?.role === 'supervisor') return roles.filter(r => r.value === 'sales_rep');
-    return [];
-  }, [user?.role]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -318,19 +319,24 @@ export function Team() {
     queryFn: async () => {
       let query = supabase
         .from('profiles')
-        .select(`
-          *,
-          territories:territory_ids (name)
-        `)
+        .select('*')
         .eq('is_active', true);
 
-      // Apply role-based filtering
-      if (user?.role === 'supervisor') {
-        query = query.eq('reports_to', user.id);
-      } else if (user?.role === 'area_manager') {
-        query = query.eq('area', user.area);
-      } else if (user?.role === 'regional_manager') {
-        query = query.eq('region', user.region);
+      // Hierarchical visibility with recursive RPC
+      if (user?.role !== 'country_head') {
+        const { data: subordinates, error: rpcError } = await supabase
+          .rpc('get_recursive_subordinates', { manager_id: user.id });
+
+        if (rpcError) {
+          console.error('Error fetching hierarchy:', rpcError);
+          // Fallback to direct reports if RPC fails
+          query = query.eq('reports_to', user.id);
+        } else {
+          // The RFC returns `id` as the column name
+          const subordinateIds = subordinates.map((s: any) => s.id).filter(Boolean);
+          // Include user and all recursive subordinates
+          query = query.in('id', [user.id, ...subordinateIds]);
+        }
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
@@ -467,13 +473,6 @@ export function Team() {
           <h1 className="text-2xl font-bold text-[#F0F4F8]">Team Management</h1>
           <p className="text-[#8B9CB8] text-sm mt-1">Manage your sales team and track performance</p>
         </div>
-        <button
-          onClick={handleAddNew}
-          className="flex items-center gap-2 px-4 py-2 bg-[#C41E3A] hover:bg-[#9B1830] text-white rounded-lg transition-colors"
-        >
-          <UserPlus className="w-4 h-4" />
-          Add Member
-        </button>
       </div>
 
       {/* Stats Cards */}
@@ -590,8 +589,8 @@ export function Team() {
               </thead>
               <tbody className="divide-y divide-white/5">
                 {filteredMembers.map((member) => {
-                  const stats = performanceStats[member.id] || { visits: 0, customers: 0, conversions: 0 };
-                  const territories = member.territory_ids?.map((id: string) =>
+                  const memberStats = performanceStats[member.id] || { visits: 0, customers: 0, conversions: 0 };
+                  const memberTerritories = member.territory_ids?.map((id: string) =>
                     territories.find((t: any) => t.id === id)
                   ).filter(Boolean) || [];
 
@@ -614,16 +613,16 @@ export function Team() {
                         {getRoleBadge(member.role)}
                       </td>
                       <td className="px-4 py-4">
-                        {territories.length > 0 ? (
+                        {memberTerritories.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
-                            {territories.slice(0, 2).map((t: any) => (
+                            {memberTerritories.slice(0, 2).map((t: any) => (
                               <span key={t.id} className="px-2 py-0.5 bg-[#0F3460] text-[#8B9CB8] text-xs rounded">
                                 {t.name}
                               </span>
                             ))}
-                            {territories.length > 2 && (
+                            {memberTerritories.length > 2 && (
                               <span className="px-2 py-0.5 bg-[#0F3460] text-[#8B9CB8] text-xs rounded">
-                                +{territories.length - 2}
+                                +{memberTerritories.length - 2}
                               </span>
                             )}
                           </div>
@@ -635,22 +634,27 @@ export function Team() {
                         <div className="flex items-center gap-4 text-sm">
                           <div className="flex items-center gap-1 text-[#8B9CB8]">
                             <CalendarCheck className="w-4 h-4" />
-                            <span>{stats.visits}</span>
+                            <span>{memberStats.visits}</span>
                           </div>
                           <div className="flex items-center gap-1 text-[#8B9CB8]">
                             <Users className="w-4 h-4" />
-                            <span>{stats.customers}</span>
+                            <span>{memberStats.customers}</span>
                           </div>
                           <div className="flex items-center gap-1 text-[#2ECC71]">
                             <TrendingUp className="w-4 h-4" />
-                            <span>{stats.conversions}</span>
+                            <span>{memberStats.conversions}</span>
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-4">
-                        <p className="text-sm text-[#F0F4F8]">
-                          ৳{(member.target_monthly || 0).toLocaleString()}
-                        </p>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-[#F0F4F8]">
+                            ৳{(member.target_monthly || 0).toLocaleString()}
+                          </span>
+                          <span className="text-xs text-[#8B9CB8]">
+                            Daily: ৳{Math.round((member.target_monthly || 0) / 30).toLocaleString()}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-4 py-4">
                         {member.last_login_at ? (
@@ -705,6 +709,6 @@ export function Team() {
         member={selectedMember}
         territories={territories}
       />
-    </div>
+    </div >
   );
 }

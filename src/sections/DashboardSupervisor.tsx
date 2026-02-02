@@ -2,16 +2,21 @@
 // AMAN CEMENT CRM — Supervisor Dashboard
 // ============================================================
 
+import { useAuthStore } from '@/store/authStore';
+import { useTeam } from '@/hooks/useTeam';
+import { useConversions } from '@/hooks/useConversions';
+import { useTodayVisits } from '@/hooks/useVisits';
 import { useCustomers } from '@/hooks/useCustomers';
-import { useTerritories } from '@/hooks/useTerritories';
+import { useUserTerritories } from '@/hooks/useTerritories';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { useMemo } from 'react';
 import { TERRITORY_COLORS } from '@/lib/constants';
-import { 
-  Users, 
-  MapPin, 
-  TrendingUp, 
+import {
+  Users,
+  MapPin,
+  TrendingUp,
   AlertTriangle,
   CheckCircle2,
   Target,
@@ -20,24 +25,64 @@ import {
 } from 'lucide-react';
 
 export function DashboardSupervisor() {
+  const { user } = useAuthStore();
+  const { data: teamMembers = [] } = useTeam();
+
+  // Calculate supervised territories from team + self
+  const uniqueTerritoryIds = useMemo(() => {
+    const ids = new Set<string>();
+    teamMembers.forEach(m => m.territory_ids?.forEach(id => ids.add(id)));
+    if (user?.territory_ids) user.territory_ids.forEach(id => ids.add(id));
+    return Array.from(ids);
+  }, [teamMembers, user]);
+
+  const { data: territories = [], isLoading: territoriesLoading } = useUserTerritories(
+    user?.id,
+    user?.role,
+    uniqueTerritoryIds
+  );
+
   const { data: customers, isLoading: customersLoading } = useCustomers({ status: 'active' });
-  const { data: territories, isLoading: territoriesLoading } = useTerritories();
 
-  const totalTerritories = territories?.length || 0;
+  // Fetch real team activity
+  const { data: todayVisits = [] } = useTodayVisits(undefined, true);
 
-  // Mock team data
-  const teamMembers = [
-    { id: '1', name: 'Ahmed Khan', visits: 12, conversions: 5, target: 15 },
-    { id: '2', name: 'Rahim Uddin', visits: 8, conversions: 3, target: 15 },
-    { id: '3', name: 'Karim Hassan', visits: 15, conversions: 7, target: 15 },
-    { id: '4', name: 'Jamal Hossain', visits: 6, conversions: 2, target: 15 },
-  ];
+  // Fetch today's conversions for team
+  const todayStr = new Date().toISOString().split('T')[0];
+  const { data: todayConversions = [] } = useConversions({
+    includeTeam: true,
+    dateFrom: todayStr
+  });
 
-  // Coverage gaps (territories with low activity)
-  const coverageGaps = territories?.slice(0, 2).map(t => ({
-    ...t,
-    daysSinceLastVisit: Math.floor(Math.random() * 7) + 3,
-  })) || [];
+  const totalTerritories = territories.length;
+
+  // Calculate real team performance
+  const teamPerformance = teamMembers.map(member => {
+    const memberVisits = todayVisits.filter(v => v.sales_rep_id === member.id).length;
+    const memberConversions = todayConversions.filter(c => c.converted_by === member.id).length;
+    // Estimate daily target from monthly (assuming 26 working days)
+    const dailyTarget = Math.round((member.target_monthly || 0) / 26) || 1;
+
+    return {
+      id: member.id,
+      name: member.full_name,
+      visits: memberVisits,
+      conversions: memberConversions,
+      target: dailyTarget
+    };
+  });
+
+  // Coverage gaps (territories with no visits today)
+  // Real implementation: Finding territories not visited today
+  const visitedTerritoryIds = new Set(todayVisits.map(v => v.customers?.territory_id).filter(Boolean));
+  const coverageGaps = territories
+    .filter(t => !visitedTerritoryIds.has(t.id))
+    .slice(0, 3)
+    .map(t => ({
+      ...t,
+      // We only know they weren't visited today, so display a generic message or "Today"
+      daysSinceLastVisit: "Today",
+    }));
 
   // High potential non-converters
   const highPotentialCustomers = customers?.filter(
@@ -57,7 +102,7 @@ export function DashboardSupervisor() {
           </p>
         </div>
         <div className="flex gap-3">
-          <Button 
+          <Button
             variant="outline"
             className="border-[#3A9EFF] text-[#3A9EFF]"
           >
@@ -90,14 +135,14 @@ export function DashboardSupervisor() {
         <StatCard
           icon={<CheckCircle2 className="w-5 h-5" />}
           label="Today's Visits"
-          value={teamMembers.reduce((sum, m) => sum + m.visits, 0)}
+          value={todayVisits.length}
           subtext="Across all team members"
           color="#D4A843"
         />
         <StatCard
           icon={<Target className="w-5 h-5" />}
           label="Conversions"
-          value={teamMembers.reduce((sum, m) => sum + m.conversions, 0)}
+          value={todayConversions.length}
           subtext="Today's successful conversions"
           color="#9B6BFF"
         />
@@ -115,38 +160,44 @@ export function DashboardSupervisor() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {teamMembers.map((member) => {
-                const progress = (member.visits / member.target) * 100;
-                return (
-                  <div key={member.id} className="p-3 bg-[#0F3460] rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-[#143874] rounded-full flex items-center justify-center">
-                          <span className="text-[#F0F4F8] font-semibold">
-                            {member.name.charAt(0)}
-                          </span>
+              {teamPerformance.length > 0 ? (
+                teamPerformance.map((member) => {
+                  const progress = Math.min((member.visits / member.target) * 100, 100);
+                  return (
+                    <div key={member.id} className="p-3 bg-[#0F3460] rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-[#143874] rounded-full flex items-center justify-center">
+                            <span className="text-[#F0F4F8] font-semibold">
+                              {member.name?.charAt(0) || 'U'}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="text-[#F0F4F8] font-medium">{member.name}</p>
+                            <p className="text-[#8B9CB8] text-xs">
+                              {member.visits} visits • {member.conversions} conversions
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-[#F0F4F8] font-medium">{member.name}</p>
-                          <p className="text-[#8B9CB8] text-xs">
-                            {member.visits} visits • {member.conversions} conversions
+                        <div className="text-right">
+                          <p className="text-[#F0F4F8] font-semibold">
+                            {Math.round(progress)}%
                           </p>
+                          <p className="text-[#8B9CB8] text-xs">of daily target</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-[#F0F4F8] font-semibold">
-                          {Math.round(progress)}%
-                        </p>
-                        <p className="text-[#8B9CB8] text-xs">of target</p>
-                      </div>
+                      <Progress
+                        value={progress}
+                        className="h-1.5 bg-[#0A2A5C]"
+                      />
                     </div>
-                    <Progress 
-                      value={progress} 
-                      className="h-1.5 bg-[#0A2A5C]"
-                    />
-                  </div>
-                );
-              })}
+                  );
+                })
+              ) : (
+                <div className="text-center py-8 text-[#8B9CB8]">
+                  <p>No team members found</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -156,7 +207,7 @@ export function DashboardSupervisor() {
           <CardHeader>
             <CardTitle className="text-[#F0F4F8] flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-[#FF7C3A]" />
-              Coverage Gaps
+              Coverage Gaps (Not Visited Today)
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -167,7 +218,7 @@ export function DashboardSupervisor() {
             ) : coverageGaps.length ? (
               <div className="space-y-3">
                 {coverageGaps.map((territory) => {
-                  const colors = TERRITORY_COLORS[territory.color_key];
+                  const colors = TERRITORY_COLORS[territory.color_key as keyof typeof TERRITORY_COLORS] || { fill: '#8B9CB8' };
                   return (
                     <div
                       key={territory.id}
@@ -182,10 +233,10 @@ export function DashboardSupervisor() {
                       <div className="flex-1">
                         <p className="text-[#F0F4F8] font-medium">{territory.name}</p>
                         <p className="text-[#FF7C3A] text-sm">
-                          No visits in {(territory as any).daysSinceLastVisit} days
+                          No visits logged today
                         </p>
                       </div>
-                      <Button 
+                      <Button
                         size="sm"
                         className="bg-[#C41E3A] hover:bg-[#9B1830]"
                       >
@@ -198,7 +249,7 @@ export function DashboardSupervisor() {
             ) : (
               <div className="text-center py-8 text-[#8B9CB8]">
                 <CheckCircle2 className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>No coverage gaps detected</p>
+                <p>All territories visited today!</p>
               </div>
             )}
           </CardContent>

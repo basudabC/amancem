@@ -41,7 +41,7 @@ const navItems: NavItem[] = [
   { path: '/visits', label: 'Visits', icon: <CalendarCheck className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'country_head'] },
   { path: '/team', label: 'Team', icon: <Users className="w-5 h-5" />, roles: ['supervisor', 'area_manager', 'regional_manager', 'country_head'] },
   { path: '/analytics', label: 'Analytics', icon: <TrendingUp className="w-5 h-5" />, roles: ['supervisor', 'area_manager', 'regional_manager', 'country_head'] },
-  { path: '/territories', label: 'Territories', icon: <Shield className="w-5 h-5" />, roles: ['area_manager', 'regional_manager', 'country_head'] },
+  { path: '/territories', label: 'Territories', icon: <Shield className="w-5 h-5" />, roles: ['supervisor', 'area_manager', 'regional_manager', 'country_head'] },
   { path: '/admin', label: 'Admin', icon: <UserCog className="w-5 h-5" />, roles: ['country_head'] },
   { path: '/settings', label: 'Settings', icon: <Settings className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'country_head'] },
 ];

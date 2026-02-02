@@ -29,7 +29,10 @@ import {
   Building2,
   Filter,
   TrendingUp,
+  Briefcase,
+  UserPlus,
 } from 'lucide-react';
+import { AssignCustomerDialog } from '@/components/AssignCustomerDialog';
 import type { Customer } from '@/types';
 
 export function Customers() {
@@ -39,6 +42,8 @@ export function Customers() {
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [showAssignDialog, setShowAssignDialog] = useState(false);
+  const [customerToAssign, setCustomerToAssign] = useState<Customer | null>(null);
 
   const { data: customers, isLoading, refetch } = useCustomers({
     salesRepId: user?.role === 'sales_rep' ? user.id : undefined,
@@ -111,6 +116,17 @@ export function Customers() {
         />
       )}
 
+      {/* Assign Customer Dialog */}
+      <AssignCustomerDialog
+        open={showAssignDialog}
+        onOpenChange={setShowAssignDialog}
+        customer={customerToAssign}
+        onSuccess={() => {
+          refetch();
+          setShowAssignDialog(false);
+        }}
+      />
+
       {/* Tabs & Search */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="flex items-center justify-between">
@@ -153,6 +169,11 @@ export function Customers() {
             isLoading={isLoading}
             type="recurring"
             onViewDetails={handleViewDetails}
+            userRole={user?.role}
+            onAssign={(c) => {
+              setCustomerToAssign(c);
+              setShowAssignDialog(true);
+            }}
           />
         </TabsContent>
 
@@ -162,6 +183,11 @@ export function Customers() {
             isLoading={isLoading}
             type="project"
             onViewDetails={handleViewDetails}
+            userRole={user?.role}
+            onAssign={(c) => {
+              setCustomerToAssign(c);
+              setShowAssignDialog(true);
+            }}
           />
         </TabsContent>
       </Tabs>
@@ -174,9 +200,11 @@ interface CustomersListProps {
   isLoading: boolean;
   type: 'recurring' | 'project';
   onViewDetails: (customer: Customer) => void;
+  userRole?: string;
+  onAssign: (customer: Customer) => void;
 }
 
-function CustomersList({ customers, isLoading, type, onViewDetails }: CustomersListProps) {
+function CustomersList({ customers, isLoading, type, onViewDetails, userRole, onAssign }: CustomersListProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -242,6 +270,46 @@ function CustomersList({ customers, isLoading, type, onViewDetails }: CustomersL
                   <User className="w-4 h-4 text-[#8B9CB8]" />
                   <span className="text-[#F0F4F8]">
                     {customer.owner_name || 'N/A'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <Briefcase className="w-4 h-4 text-[#8B9CB8]" />
+                  <span className="text-[#F0F4F8] flex items-center gap-2">
+                    {customer.sales_rep_name ? (
+                      <>
+                        {customer.sales_rep_name}
+                        {/* Allow re-assign if manager */}
+                        {userRole !== 'sales_rep' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAssign(customer);
+                            }}
+                            className="text-[#3A9EFF] hover:text-[#2A8EEF] text-xs p-1"
+                            title="Reassign"
+                          >
+                            <UserPlus className="w-3 h-3" />
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <span className="text-yellow-500 italic">Unassigned</span>
+                        {userRole !== 'sales_rep' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent card click
+                              onAssign(customer);
+                            }}
+                            className="h-5 px-2 text-xs bg-[#3A9EFF]/20 text-[#3A9EFF] hover:bg-[#3A9EFF]/30 hover:text-white"
+                          >
+                            Assign
+                          </Button>
+                        )}
+                      </span>
+                    )}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">

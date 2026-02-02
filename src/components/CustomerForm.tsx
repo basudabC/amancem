@@ -212,8 +212,12 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
 
             if (!customer) {
                 // Only set these on create
-                customerData.assigned_to = user?.id;
                 customerData.created_by = user?.id;
+
+                // Auto-assign if creator is a sales rep
+                if (user?.role === 'sales_rep') {
+                    customerData.assigned_to = user?.id;
+                }
             }
 
             if (pipeline === 'recurring') {

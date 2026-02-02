@@ -66,24 +66,12 @@ export function useConversions(options: UseConversionsOptions = {}) {
             }
 
             // Filter by sales rep or team (hierarchy-based)
-            // NOTE: Don't filter by user if we're already filtering by customer
             if (options.salesRepId) {
                 query = query.eq('converted_by', options.salesRepId);
-            } else if (options.includeTeam && user) {
-                // For managers, include team members' sales
-                const { data: teamMembers, error: teamError } = await supabase
-                    .from('profiles')
-                    .select('id')
-                    .or(`reports_to.eq.${user.id},id.eq.${user.id}`);
-
-                if (teamError) {
-                    console.error('useConversions: Error fetching team members:', teamError);
-                }
-
-                if (teamMembers && teamMembers.length > 0) {
-                    const teamIds = teamMembers.map(m => m.id);
-                    query = query.in('converted_by', teamIds);
-                }
+            } else if (options.includeTeam) {
+                // RLS Policy "hierarchy_view_conversions" handles the filtering
+                // effectively showing own + team conversions automatically.
+                // No manual filter needed here.
             } else if (user && !options.customerId) {
                 // Default: only show user's own conversions (but NOT when filtering by customer)
                 query = query.eq('converted_by', user.id);

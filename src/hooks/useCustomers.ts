@@ -18,7 +18,7 @@ export const useCustomers = (filters?: {
     queryFn: async (): Promise<Customer[]> => {
       let query = supabase
         .from('customers')
-        .select('*');
+        .select('*, territories(name, color_key), profiles:assigned_to(full_name)');
 
       if (filters?.pipeline) {
         query = query.eq('pipeline', filters.pipeline);
@@ -346,7 +346,7 @@ export const useMapCustomers = (territoryIds?: string[]) => {
     queryFn: async (): Promise<Customer[]> => {
       let query = supabase
         .from('customers')
-        .select('*')
+        .select('*, territories(name, color_key), profiles!sales_rep_id(full_name)')
         .eq('status', 'active');
 
       if (territoryIds && territoryIds.length > 0) {
@@ -361,8 +361,10 @@ export const useMapCustomers = (territoryIds?: string[]) => {
         id: item.id,
         pipeline: item.pipeline,
         name: item.name,
-        latitude: item.latitude,
-        longitude: item.longitude,
+        // Robust coordinate mapping: Try all common variations
+        latitude: item.latitude || item.lat,
+        longitude: item.longitude || item.lng,
+
         territory_id: item.territory_id,
         sales_rep_id: item.sales_rep_id,
         status: item.status,

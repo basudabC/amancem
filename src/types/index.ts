@@ -7,6 +7,50 @@
 export type UserRole = 'sales_rep' | 'supervisor' | 'area_manager' | 'regional_manager' | 'country_head';
 
 // User (maps to profiles table)
+// ... existing types
+
+export interface CustomerFormData {
+  name: string;
+  owner_name?: string;
+  owner_age?: number;
+  phone?: string;
+  email?: string;
+  address?: string;
+  lat?: number;
+  lng?: number;
+  pipeline: PipelineType;
+  shop_name?: string;
+  monthly_sales_advance?: number;
+  monthly_sales_advance_plus?: number;
+  monthly_sales_green?: number;
+  monthly_sales_basic?: number;
+  monthly_sales_classic?: number;
+  selling_price_advance?: number;
+  selling_price_advance_plus?: number;
+  selling_price_green?: number;
+  selling_price_basic?: number;
+  selling_price_classic?: number;
+  brand_preferences?: string[];
+  competitor_brands?: string[];
+  storage_capacity?: number;
+  credit_practice?: string;
+  credit_days?: number;
+  promotions_offered?: string[];
+  built_up_area?: number;
+  number_of_floors?: number;
+  structure_type?: StructureType;
+  construction_stage?: number;
+  project_started?: boolean;
+  current_brand?: string;
+  notes?: string;
+  tags?: string[];
+  assigned_to?: string;
+  created_by?: string;
+  sales_rep_id?: string;
+  sales_rep_name?: string;
+  contact_person?: string;
+}
+
 export interface User {
   id: string;
   employee_code: string;
@@ -48,7 +92,7 @@ export interface Territory {
 // Customer Pipeline Types
 export type PipelineType = 'recurring' | 'one_time';
 export type CustomerStatus = 'prospect' | 'active' | 'inactive' | 'archived';
-export type VisitOutcome = 'interested' | 'progressive' | 'not_interested';
+export type VisitOutcome = 'interested' | 'progressive' | 'not_interested' | 'stagnant';
 export type VisitStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
 export type CreditPractice = 'cash' | 'credit';
 export type StructureType = 'RCC' | 'Steel' | 'Mixed';
@@ -63,6 +107,7 @@ export interface Customer {
   phone?: string;
   email?: string;
   address?: string;
+  area?: string;
   lat?: number;
   lng?: number;
   territory_id?: string;
@@ -149,6 +194,14 @@ export interface Customer {
   territory_name?: string;
   sales_rep_name?: string;
   territories?: any;
+  profiles?: any;
+
+  // UI helper fields
+  latitude?: number;
+  longitude?: number;
+  last_outcome?: VisitOutcome | string;
+  territory_color_key?: string;
+  pipeline_data?: any;
 }
 
 // Enhanced Visit Interface
@@ -160,6 +213,7 @@ export interface Visit {
   // Visit scheduling
   scheduled_at?: string;
   scheduled_duration?: number;
+  completed?: boolean;
 
   // Check-in details
   checked_in_at?: string;
@@ -193,229 +247,13 @@ export interface Visit {
   // GPS validation (NEW)
   distance_from_customer?: number; // meters
   is_within_geofence?: boolean;
+  voice_memo_url?: string;
 
   created_at: string;
   updated_at: string;
 
   // Joined fields
   customer_name?: string;
-  customer_pipeline?: PipelineType;
-  customers?: Customer;
-}
-
-// Enhanced Conversion/Sales Interface with ALL new fields
-export interface Conversion {
-  id: string;
-  customer_id: string;
-  converted_by: string;
-  converted_at: string;
-
-  // Link to visit (NEW)
-  visit_id?: string;
-  sale_id?: string; // Auto-generated: ACM-YYYY-XXXXX
-
-  // Product details (NEW - required for sales)
-  product?: string; // Which Aman Cement product
-  quantity_bags?: number; // Number of bags sold
-  unit_price?: number; // Price per bag in Tk
-  total_value?: number; // Auto-calculated: quantity × unit_price
-
-  // Payment details (NEW)
-  payment_type?: PaymentType; // 'cash', 'credit', 'partial'
-  cash_amount?: number;
-  credit_amount?: number;
-  credit_days?: number;
-  expected_payment_date?: string; // Auto-calculated
-
-  // Delivery details (NEW)
-  delivery_address?: string;
-  delivery_lat?: number;
-  delivery_lng?: number;
-  expected_delivery_date?: string;
-  delivery_status?: DeliveryStatus;
-  actual_delivery_date?: string;
-
-  // Project-specific updates (NEW)
-  construction_stage_update?: number; // For projects
-  cement_consumed_update?: number; // For projects
-
-  // Additional notes (NEW)
-  sale_notes?: string;
-
-  // Legacy fields (kept for compatibility)
-  order_value?: number;
-  order_volume?: number;
-  product_type?: string;
-
-  // Source tracking
-  source_visit_id?: string;
-  days_from_first_contact?: number;
-  total_visits_before_conversion?: number;
-
-  // Approval
-  approved_by?: string;
-  approved_at?: string;
-  approval_notes?: string;
-
-  notes?: string;
-  created_at: string;
-
-  // Joined fields
-  customer_name?: string;
   sales_rep_name?: string;
-  customers?: Customer;
-}
-
-// GPS Validation Result (from database function)
-export interface GPSValidationResult {
-  is_valid: boolean;
-  distance_meters: number;
-  reason: string;
-}
-
-// Aman Cement Products
-export const AMAN_PRODUCTS = [
-  'AmanCem Advance',
-  'AmanCem Advance Plus',
-  'AmanCem Green',
-  'AmanCem Basic',
-  'AmanCem Classic',
-] as const;
-
-export type AmanProduct = typeof AMAN_PRODUCTS[number];
-
-// Form Data Types for Creating/Editing
-
-export interface CustomerFormData {
-  // Basic info
-  name: string;
-  contact_person?: string;
-  phone?: string;
-  email?: string;
-  address?: string;
-  lat?: number;
-  lng?: number;
-  territory_id?: string;
-  pipeline: PipelineType;
-
-  // Owner info
-  owner_name?: string;
-  owner_age?: number;
-
-  // Recurring shop fields
-  shop_name?: string;
-  monthly_sales_advance?: number;
-  monthly_sales_advance_plus?: number;
-  monthly_sales_green?: number;
-  monthly_sales_basic?: number;
-  monthly_sales_classic?: number;
-  selling_price_advance?: number;
-  selling_price_advance_plus?: number;
-  selling_price_green?: number;
-  selling_price_basic?: number;
-  selling_price_classic?: number;
-  brand_preferences?: string[];
-  competitor_brands?: string[];
-  storage_capacity?: number;
-  credit_practice?: CreditPractice;
-  credit_days?: number;
-  promotions_offered?: string[];
-
-  // Project fields
-  built_up_area?: number;
-  number_of_floors?: number;
-  structure_type?: StructureType;
-  construction_stage?: number;
-  project_started?: boolean;
-  current_brand?: string;
-
-  notes?: string;
-  tags?: string[];
-}
-
-export interface ConversionFormData {
-  customer_id: string;
-  visit_id?: string;
-
-  // Product details
-  product: AmanProduct;
-  quantity_bags: number;
-  unit_price: number;
-
-  // Payment details
-  payment_type: PaymentType;
-  cash_amount?: number;
-  credit_amount?: number;
-  credit_days?: number;
-
-  // Delivery details
-  delivery_address?: string;
-  delivery_lat?: number;
-  delivery_lng?: number;
-  expected_delivery_date?: string;
-
-  // Project updates
-  construction_stage_update?: number;
-  cement_consumed_update?: number;
-
-  sale_notes?: string;
-}
-
-// Dashboard Data (existing types kept)
-export interface RepDashboardData {
-  todayVisits: number;
-  visitsTarget: number;
-  salesToday: number;
-  salesTarget: number;
-  pendingDeliveries: Conversion[];
-  pendingPayments: Conversion[];
-  hotProspects: Customer[];
-}
-
-export interface SupervisorDashboardData {
-  teamSales: TeamSalesData[];
-  territoryComparison: TerritoryComparison[];
-  pendingDeliveries: Conversion[];
-  pendingPayments: Conversion[];
-  conversionLeaks: ConversionLeak[];
-}
-
-export interface TeamSalesData {
-  rep_id: string;
-  rep_name: string;
-  sales_count: number;
-  bags_sold: number;
-  total_value: number;
-}
-
-export interface TerritoryComparison {
-  territory_id: string;
-  territory_name: string;
-  sales_count: number;
-  total_value: number;
-}
-
-export interface ConversionLeak {
-  type: 'no_sales' | 'interested_no_order';
-  rep_id?: string;
-  rep_name?: string;
-  customer_id?: string;
-  customer_name?: string;
-  details: string;
-}
-
-// Map Filter State
-export interface MapFilterState {
-  showRecurring: boolean;
-  showProjects: boolean;
-  showArchived: boolean;
-  selectedTerritories: string[];
-  showHeatmap: boolean;
-}
-
-// Auth State
-export interface AuthState {
-  user: User | null;
-  session: any | null;
-  isLoading: boolean;
+  customer?: Customer;
 }

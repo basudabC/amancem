@@ -6,10 +6,13 @@ import { useAuthStore } from '@/store/authStore';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useTodayVisits } from '@/hooks/useVisits';
 import { useSalesSummary } from '@/hooks/useConversions';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Route,
   MapPin,
@@ -24,6 +27,7 @@ import {
 
 export function DashboardRep() {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
 
   const { data: customers, isLoading: customersLoading } = useCustomers({
     salesRepId: user?.id,
@@ -58,6 +62,24 @@ export function DashboardRep() {
     dateFrom: startOfMonthStr,
   });
 
+  // Fetch fresh profile data for Target
+  const { data: profile } = useQuery({
+    queryKey: ['my-profile-target', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('target_monthly')
+        .eq('id', user?.id)
+        .single();
+      if (error) return null;
+      return data;
+    },
+    enabled: !!user?.id
+  });
+
+  const monthlyTarget = profile?.target_monthly || 0;
+  const dailyTarget = monthlyTarget > 0 ? Math.round(monthlyTarget / 30) : 0;
+
   const visitsDone = todayVisits?.filter(v => v.completed).length || 0;
   const visitsTarget = 8; // Daily target
   const visitProgress = (visitsDone / visitsTarget) * 100;
@@ -84,7 +106,10 @@ export function DashboardRep() {
             Here's your performance overview for today
           </p>
         </div>
-        <Button className="bg-[#C41E3A] hover:bg-[#9B1830]">
+        <Button
+          className="bg-[#C41E3A] hover:bg-[#9B1830]"
+          onClick={() => navigate('/map')}
+        >
           <Route className="w-4 h-4 mr-2" />
           View Today's Route
         </Button>
@@ -92,34 +117,40 @@ export function DashboardRep() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Daily Sales vs Target */}
         <StatCard
           icon={<DollarSign className="w-5 h-5" />}
-          label="Today's Sales"
-          value={`${todaySales.total_value.toLocaleString()} Tk`}
-          subtext={`${todaySales.total_count} sale${todaySales.total_count !== 1 ? 's' : ''}`}
-          color="#2ECC71"
+          label="Daily Sales"
+          value={`৳${todaySales.total_value.toLocaleString()}`}
+          subtext={`Target: ৳${dailyTarget.toLocaleString()}`}
+          color={todaySales.total_value >= dailyTarget ? "#2ECC71" : "#E74C5E"}
+          progress={dailyTarget > 0 ? (todaySales.total_value / dailyTarget) * 100 : 0}
         />
+
+        {/* Monthly Sales vs Target */}
         <StatCard
-          icon={<TrendingUp className="w-5 h-5" />}
+          icon={<Target className="w-5 h-5" />}
           label="Monthly Sales"
-          value={`${monthlySales.total_value.toLocaleString()} Tk`}
-          subtext={`${monthlySales.total_count} conversions`}
-          color="#3A9EFF"
+          value={`৳${monthlySales.total_value.toLocaleString()}`}
+          subtext={`Target: ৳${monthlyTarget.toLocaleString()}`}
+          color={monthlySales.total_value >= monthlyTarget ? "#2ECC71" : "#3A9EFF"}
+          progress={monthlyTarget > 0 ? (monthlySales.total_value / monthlyTarget) * 100 : 0}
         />
+
         <StatCard
-          icon={<CheckCircle2 className="w-5 h-5" />}
-          label="Visits Completed"
-          value={`${visitsDone}/${visitsTarget}`}
-          subtext={`${Math.round(visitProgress)}% of daily target`}
-          color="#D4A843"
+          icon={<MapPin className="w-5 h-5" />}
+          label="Today's Visits"
+          value={`${visitsDone} / ${visitsTarget}`}
+          subtext={`${((visitsDone / visitsTarget) * 100).toFixed(0)}% Completed`}
+          color="#3A9EFF"
           progress={visitProgress}
         />
         <StatCard
-          icon={<Package className="w-5 h-5" />}
-          label="Total Volume"
-          value={`${monthlySales.total_volume.toFixed(1)} bags`}
-          subtext="This month"
-          color="#FF7C3A"
+          icon={<TrendingUp className="w-5 h-5" />}
+          label="Conversion Rate"
+          value={`${todayVisits?.length ? ((todaySales.total_count / todayVisits.length) * 100).toFixed(1) : 0}%`}
+          subtext="Based on today's visits"
+          color="#F1C40F"
         />
       </div>
 
@@ -174,6 +205,7 @@ export function DashboardRep() {
                 <Button
                   variant="outline"
                   className="mt-4 border-[#3A9EFF] text-[#3A9EFF]"
+                  onClick={() => navigate('/map')}
                 >
                   Plan Your Route
                 </Button>

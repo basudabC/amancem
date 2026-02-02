@@ -226,9 +226,10 @@ function TerritoryModal({
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm text-[#8B9CB8]">Area</label>
+              <label className="text-sm text-[#8B9CB8]">Area *</label>
               <input
                 type="text"
+                required
                 value={formData.area}
                 onChange={(e) => setFormData({ ...formData, area: e.target.value })}
                 className="w-full px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] focus:border-[#3A9EFF] outline-none"
@@ -260,8 +261,8 @@ function TerritoryModal({
                   type="button"
                   onClick={() => setFormData({ ...formData, color: c.key })}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${formData.color === c.key
-                      ? 'border-[#3A9EFF] bg-[#3A9EFF]/10'
-                      : 'border-white/10 hover:border-white/30'
+                    ? 'border-[#3A9EFF] bg-[#3A9EFF]/10'
+                    : 'border-white/10 hover:border-white/30'
                     }`}
                 >
                   <div
@@ -379,7 +380,7 @@ export function Territories() {
 
   // Fetch territories
   const { data: territories = [], isLoading } = useQuery({
-    queryKey: ['territories'],
+    queryKey: ['territories', user?.id, user?.role],
     queryFn: async () => {
       let query = supabase
         .from('territories')
@@ -390,15 +391,20 @@ export function Territories() {
         .eq('is_active', true);
 
       if (user?.role === 'area_manager') {
-        query = query.eq('area', user.area);
+        // Use ilike for case-insensitive matching. Fallback to dummy to prevent leaking all data if profile is incomplete.
+        query = query.ilike('area', user.area || '___NO_AREA___');
       } else if (user?.role === 'regional_manager') {
-        query = query.eq('region', user.region);
+        query = query.ilike('region', user.region || '___NO_REGION___');
+      } else if (user?.role === 'supervisor') {
+        // Supervisor sees only their assigned territory
+        query = query.eq('supervisor_id', user.id);
       }
 
       const { data, error } = await query.order('name');
       if (error) throw error;
       return data;
     },
+    enabled: !!user,
   });
 
   // Fetch supervisors for assignment
@@ -432,16 +438,32 @@ export function Territories() {
         .select('customer_id, customers!inner(territory_id)')
         .in('customers.territory_id', territoryIds);
 
-      const stats: Record<string, { customers: number; visits: number; conversions: number }> = {};
+      const { data: reps } = await supabase
+        .from('profiles')
+        .select('id, territory_ids')
+        .eq('role', 'sales_rep')
+        .eq('is_active', true);
+
+      const stats: Record<string, { customers: number; visits: number; conversions: number; reps: number }> = {};
 
       territoryIds.forEach(id => {
-        stats[id] = { customers: 0, visits: 0, conversions: 0 };
+        stats[id] = { customers: 0, visits: 0, conversions: 0, reps: 0 };
       });
 
       customers?.forEach((c: any) => {
         if (stats[c.territory_id]) {
           stats[c.territory_id].customers++;
           if (c.is_converted) stats[c.territory_id].conversions++;
+        }
+      });
+
+      reps?.forEach((r: any) => {
+        if (r.territory_ids && Array.isArray(r.territory_ids)) {
+          r.territory_ids.forEach((tid: string) => {
+            if (stats[tid]) {
+              stats[tid].reps++;
+            }
+          });
         }
       });
 
@@ -693,18 +715,22 @@ export function Territories() {
                   </div>
 
                   {/* Stats */}
-                  <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-white/10">
+                  <div className="grid grid-cols-4 gap-2 mt-4 pt-4 border-t border-white/10">
+                    <div className="text-center">
+                      <p className="text-lg font-bold text-[#F0F4F8]">{stats.reps}</p>
+                      <p className="text-[10px] text-[#8B9CB8]">Reps</p>
+                    </div>
                     <div className="text-center">
                       <p className="text-lg font-bold text-[#3A9EFF]">{stats.customers}</p>
-                      <p className="text-xs text-[#8B9CB8]">Customers</p>
+                      <p className="text-[10px] text-[#8B9CB8]">Cust.</p>
                     </div>
                     <div className="text-center">
                       <p className="text-lg font-bold text-[#D4A843]">{stats.visits}</p>
-                      <p className="text-xs text-[#8B9CB8]">Visits</p>
+                      <p className="text-[10px] text-[#8B9CB8]">Visits</p>
                     </div>
                     <div className="text-center">
                       <p className="text-lg font-bold text-[#2ECC71]">{stats.conversions}</p>
-                      <p className="text-xs text-[#8B9CB8]">Conversions</p>
+                      <p className="text-[10px] text-[#8B9CB8]">Conv.</p>
                     </div>
                   </div>
                 </div>

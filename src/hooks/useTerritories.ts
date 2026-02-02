@@ -154,11 +154,25 @@ export const useUserTerritories = (userId?: string, userRole?: string, territory
       }
 
       // Other roles see only authorized territories
+      const conditions = [];
+
+      // 1. Assigned via list (e.g. from profile or team)
       if (territoryIds && territoryIds.length > 0) {
+        // Need to format array for PostgREST: (id1,id2,id3)
+        conditions.push(`id.in.(${territoryIds.join(',')})`);
+      }
+
+      // 2. Assigned via supervisor_id column (direct supervision)
+      if (userId) {
+        conditions.push(`supervisor_id.eq.${userId}`);
+      }
+
+      if (conditions.length > 0) {
+        // Use OR to combine conditions
         const { data, error } = await supabase
           .from('territories')
           .select('*')
-          .in('id', territoryIds)
+          .or(conditions.join(','))
           .order('name');
 
         if (error) throw error;

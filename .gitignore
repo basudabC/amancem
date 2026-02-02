@@ -49,3 +49,9 @@ Thumbs.db
 # Optional
 # =====================
 coverage/
+
+# Ignore all SQL files
+*.sql
+
+# Ignore Supabase local files
+supabase/
