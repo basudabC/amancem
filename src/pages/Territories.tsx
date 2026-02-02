@@ -646,7 +646,7 @@ export function Territories() {
         ) : (
           filteredTerritories.map((territory) => {
             const color = getColorStyle(territory.color);
-            const stats = territoryStats[territory.id] || { customers: 0, visits: 0, conversions: 0 };
+            const stats = territoryStats[territory.id] || { customers: 0, visits: 0, conversions: 0, reps: 0 };
 
             return (
               <div key={territory.id} className="bg-[#0A2A5C] rounded-xl border border-white/10 overflow-hidden hover:border-white/20 transition-colors">

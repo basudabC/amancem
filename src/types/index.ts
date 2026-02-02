@@ -16,6 +16,7 @@ export interface CustomerFormData {
   phone?: string;
   email?: string;
   address?: string;
+  area?: string;
   lat?: number;
   lng?: number;
   pipeline: PipelineType;
@@ -89,6 +90,9 @@ export interface Territory {
   updated_at: string;
 }
 
+
+export type TerritoryColorKey = 'territory_a' | 'territory_b' | 'territory_c' | 'territory_d' | 'territory_e' | 'territory_f' | 'territory_g' | 'territory_h';
+
 // Customer Pipeline Types
 export type PipelineType = 'recurring' | 'one_time';
 export type CustomerStatus = 'prospect' | 'active' | 'inactive' | 'archived';
@@ -111,6 +115,7 @@ export interface Customer {
   lat?: number;
   lng?: number;
   territory_id?: string;
+  sales_rep_id?: string;
 
   // Pipeline classification
   pipeline: PipelineType;

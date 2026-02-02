@@ -80,6 +80,7 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                 phone: customer.phone,
                 email: customer.email,
                 address: customer.address,
+                area: customer.area,
                 lat: customer.lat,
                 lng: customer.lng,
                 pipeline: customer.pipeline,
@@ -200,6 +201,7 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                 phone: formData.phone,
                 email: formData.email,
                 address: formData.address,
+                area: formData.area,
                 lat: formData.lat,
                 lng: formData.lng,
                 pipeline,
@@ -394,6 +396,17 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                                         className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
                                         placeholder="Full address..."
                                         rows={2}
+                                    />
+                                </div>
+
+                                <div>
+                                    <Label className="text-[#F0F4F8]">Area *</Label>
+                                    <Input
+                                        required
+                                        value={formData.area || ''}
+                                        onChange={(e) => setFormData({ ...formData, area: e.target.value })}
+                                        className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
+                                        placeholder="e.g. Gulshan 1"
                                     />
                                 </div>
 

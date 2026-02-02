@@ -60,6 +60,10 @@ export function DashboardSupervisor() {
   const teamPerformance = teamMembers.map(member => {
     const memberVisits = todayVisits.filter(v => v.sales_rep_id === member.id).length;
     const memberConversions = todayConversions.filter(c => c.converted_by === member.id).length;
+    const memberSalesValue = todayConversions
+      .filter(c => c.converted_by === member.id)
+      .reduce((sum, c) => sum + (c.order_value || 0), 0);
+
     // Estimate daily target from monthly (assuming 26 working days)
     const dailyTarget = Math.round((member.target_monthly || 0) / 26) || 1;
 
@@ -68,13 +72,14 @@ export function DashboardSupervisor() {
       name: member.full_name,
       visits: memberVisits,
       conversions: memberConversions,
+      salesValue: memberSalesValue,
       target: dailyTarget
     };
   });
 
   // Coverage gaps (territories with no visits today)
   // Real implementation: Finding territories not visited today
-  const visitedTerritoryIds = new Set(todayVisits.map(v => v.customers?.territory_id).filter(Boolean));
+  const visitedTerritoryIds = new Set(todayVisits.map(v => v.customer?.territory_id).filter(Boolean));
   const coverageGaps = territories
     .filter(t => !visitedTerritoryIds.has(t.id))
     .slice(0, 3)
@@ -162,7 +167,8 @@ export function DashboardSupervisor() {
             <div className="space-y-4">
               {teamPerformance.length > 0 ? (
                 teamPerformance.map((member) => {
-                  const progress = Math.min((member.visits / member.target) * 100, 100);
+                  const progress = Math.min((member.salesValue / member.target) * 100, 100);
+                  const achieved = member.salesValue.toLocaleString();
                   return (
                     <div key={member.id} className="p-3 bg-[#0F3460] rounded-lg">
                       <div className="flex items-center justify-between mb-2">
@@ -175,13 +181,13 @@ export function DashboardSupervisor() {
                           <div>
                             <p className="text-[#F0F4F8] font-medium">{member.name}</p>
                             <p className="text-[#8B9CB8] text-xs">
-                              {member.visits} visits • {member.conversions} conversions
+                              {member.visits} visits • {member.conversions} conversions • ৳{achieved}
                             </p>
                           </div>
                         </div>
                         <div className="text-right">
                           <p className="text-[#F0F4F8] font-semibold">
-                            {Math.round(progress)}%
+                            {progress.toFixed(1)}%
                           </p>
                           <p className="text-[#8B9CB8] text-xs">of daily target</p>
                         </div>
@@ -218,7 +224,7 @@ export function DashboardSupervisor() {
             ) : coverageGaps.length ? (
               <div className="space-y-3">
                 {coverageGaps.map((territory) => {
-                  const colors = TERRITORY_COLORS[territory.color_key as keyof typeof TERRITORY_COLORS] || { fill: '#8B9CB8' };
+                  const fillColor = territory.color || '#8B9CB8';
                   return (
                     <div
                       key={territory.id}
@@ -226,9 +232,9 @@ export function DashboardSupervisor() {
                     >
                       <div
                         className="w-10 h-10 rounded-lg flex items-center justify-center"
-                        style={{ background: `${colors?.fill}30` }}
+                        style={{ background: `${fillColor}30` }}
                       >
-                        <MapPin className="w-5 h-5" style={{ color: colors?.fill }} />
+                        <MapPin className="w-5 h-5" style={{ color: fillColor }} />
                       </div>
                       <div className="flex-1">
                         <p className="text-[#F0F4F8] font-medium">{territory.name}</p>

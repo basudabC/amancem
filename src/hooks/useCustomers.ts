@@ -60,7 +60,9 @@ export const useCustomers = (filters?: {
           status: item.status,
           pipeline_data: item.pipeline_data,
           last_outcome: item.last_outcome,
+          last_visit_at: item.last_visit_at,
           last_visit_outcome: item.last_visit_outcome,
+          visit_count: item.visit_count,
           is_converted: item.is_converted,
           notes: item.notes,
           tags: item.tags,
@@ -270,14 +272,19 @@ export const useCustomerVisits = (customerId: string) => {
         id: item.id,
         customer_id: item.customer_id,
         sales_rep_id: item.sales_rep_id,
-        checkin_lat: item.checkin_lat,
-        checkin_lng: item.checkin_lng,
-        checkin_at: item.checkin_at,
+        check_in_lat: item.check_in_lat,
+        check_in_lng: item.check_in_lng,
+        checked_in_at: item.checked_in_at,
         outcome: item.outcome,
-        note: item.note,
+        notes: item.notes,
         voice_memo_url: item.voice_memo_url,
-        completed: item.completed,
+        status: item.status,
+        purpose: item.purpose,
+        feedback: item.feedback,
+        products_discussed: item.products_discussed,
+        completed: item.status === 'completed',
         created_at: item.created_at,
+        updated_at: item.updated_at,
         customer_name: item.customers?.name,
         customer_pipeline: item.customers?.pipeline,
       })) as Visit[];
@@ -324,7 +331,7 @@ export const useUpdateVisitOutcome = () => {
     }) => {
       const { data, error } = await supabase
         .from('visits')
-        .update({ outcome, completed })
+        .update({ outcome })
         .eq('id', visitId)
         .select()
         .single();
@@ -370,6 +377,9 @@ export const useMapCustomers = (territoryIds?: string[]) => {
         status: item.status,
         pipeline_data: item.pipeline_data,
         last_outcome: item.last_outcome,
+        is_converted: item.is_converted,
+        created_at: item.created_at,
+        updated_at: item.updated_at,
         territory_name: item.territories?.name,
         territory_color_key: item.territories?.color_key,
         sales_rep_name: item.profiles?.full_name,
