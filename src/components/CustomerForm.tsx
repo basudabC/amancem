@@ -4,6 +4,7 @@
 // ============================================================
 
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/button';
@@ -84,6 +85,50 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
         competitor_brands: [],
         promotions_offered: [],
     });
+
+
+
+    /* --- Hierarchy Logic --- */
+    const { data: regions = [] } = useQuery({
+        queryKey: ['regions'],
+        queryFn: async () => {
+            const { data } = await supabase.from('regions').select('*').order('name');
+            return data || [];
+        },
+    });
+
+    const { data: areas = [] } = useQuery({
+        queryKey: ['areas'],
+        queryFn: async () => {
+            const { data } = await supabase.from('areas').select('*').order('name');
+            return data || [];
+        },
+    });
+
+    const { data: territories = [] } = useQuery({
+        queryKey: ['territories'],
+        queryFn: async () => {
+            // Fetch territory with region and area names for filtering
+            const { data } = await supabase.from('territories').select('*').eq('is_active', true).order('name');
+            return data || [];
+        },
+    });
+
+
+    // Filter Areas based on selected Region
+    const filteredAreas = (() => {
+        const selectedRegion = regions.find((r: any) => r.name === formData.region);
+        if (!selectedRegion) return [];
+        return areas.filter((a: any) => a.region_id === selectedRegion.id);
+    })();
+
+    // Filter Territories based on selected Area
+    const filteredTerritories = (() => {
+        // Filter territories whose area name matches
+        // Since territories table has 'area' column (text), we match by name for now.
+        return territories.filter((t: any) => t.area === formData.area);
+    })();
+
 
     // Populate form when editing
     useEffect(() => {
@@ -445,14 +490,56 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                                 </div>
 
                                 <div>
+                                    <Label className="text-[#F0F4F8]">Region *</Label>
+                                    <Select
+                                        value={formData.region || ''}
+                                        onValueChange={(v) => setFormData({ ...formData, region: v, area: '', territory_id: '' })}
+                                    >
+                                        <SelectTrigger className="bg-[#061A3A] border-white/10 text-[#F0F4F8]">
+                                            <SelectValue placeholder="Select Region" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8]">
+                                            {regions.map((r: any) => (
+                                                <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div>
                                     <Label className="text-[#F0F4F8]">Area *</Label>
-                                    <Input
-                                        required
-                                        value={formData.area || ''}
-                                        onChange={(e) => setFormData({ ...formData, area: e.target.value })}
-                                        className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
-                                        placeholder="e.g. Gulshan 1"
-                                    />
+                                    <Select
+                                        value={formData.area || ''} // Using Name
+                                        onValueChange={(v) => setFormData({ ...formData, area: v, territory_id: '' })}
+                                        disabled={!formData.region}
+                                    >
+                                        <SelectTrigger className="bg-[#061A3A] border-white/10 text-[#F0F4F8]">
+                                            <SelectValue placeholder="Select Area" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8]">
+                                            {filteredAreas.map((a: any) => (
+                                                <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div>
+                                    <Label className="text-[#F0F4F8]">Territory *</Label>
+                                    <Select
+                                        value={formData.territory_id || ''}
+                                        onValueChange={(v) => setFormData({ ...formData, territory_id: v })}
+                                        disabled={!formData.area}
+                                    >
+                                        <SelectTrigger className="bg-[#061A3A] border-white/10 text-[#F0F4F8]">
+                                            <SelectValue placeholder="Select Territory" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8]">
+                                            {filteredTerritories.map((t: any) => (
+                                                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
 
                                 <div>

@@ -17,6 +17,8 @@ export interface CustomerFormData {
   phone?: string;
   email?: string;
   address?: string;
+  region?: string;
+  territory_id?: string;
   area?: string;
   lat?: number;
   lng?: number;

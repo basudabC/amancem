@@ -26,9 +26,19 @@ import {
   X,
   Palette,
   Navigation,
-  Layers
+  Layers,
+  Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { HierarchyManagement } from '@/components/HierarchyManagement';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 // Territory Form Modal
 interface TerritoryFormData {
@@ -85,6 +95,34 @@ function TerritoryModal({
   const [formData, setFormData] = useState<TerritoryFormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [geojsonError, setGeojsonError] = useState('');
+
+  /* Fetch Regions */
+  const { data: regions = [] } = useQuery({
+    queryKey: ['regions'],
+    queryFn: async () => {
+      const { data } = await supabase.from('regions').select('*').order('name');
+      return data || [];
+    },
+  });
+
+  /* Fetch Areas */
+  const { data: areas = [] } = useQuery({
+    queryKey: ['areas'],
+    queryFn: async () => {
+      const { data } = await supabase.from('areas').select('*').order('name');
+      return data || [];
+    },
+  });
+
+  const filteredAreas = (() => {
+    const selectedRegion = regions.find((r: any) => r.name === formData.region);
+    if (!selectedRegion) return [];
+    return areas.filter((a: any) => a.region_id === selectedRegion.id);
+  })();
+
+  const handleRegionChange = (regionName: string) => {
+    setFormData({ ...formData, region: regionName, area: '' }); // Reset area on region change
+  };
 
   useState(() => {
     if (territory) {
@@ -216,25 +254,36 @@ function TerritoryModal({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm text-[#8B9CB8]">Region *</label>
-              <input
-                type="text"
-                required
+              <Select
                 value={formData.region}
-                onChange={(e) => setFormData({ ...formData, region: e.target.value })}
-                className="w-full px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] focus:border-[#3A9EFF] outline-none"
-                placeholder="e.g., Dhaka"
-              />
+                onValueChange={handleRegionChange}
+              >
+                <SelectTrigger className="w-full px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8]">
+                  <SelectValue placeholder="Select Region" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#0A2A5C] border-white/10">
+                  {regions.map((r: any) => (
+                    <SelectItem key={r.id} value={r.name} className="text-[#F0F4F8]">{r.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <label className="text-sm text-[#8B9CB8]">Area *</label>
-              <input
-                type="text"
-                required
+              <Select
                 value={formData.area}
-                onChange={(e) => setFormData({ ...formData, area: e.target.value })}
-                className="w-full px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] focus:border-[#3A9EFF] outline-none"
-                placeholder="e.g., North Dhaka"
-              />
+                onValueChange={(v) => setFormData({ ...formData, area: v })}
+                disabled={!formData.region}
+              >
+                <SelectTrigger className="w-full px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8]">
+                  <SelectValue placeholder="Select Area" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#0A2A5C] border-white/10">
+                  {filteredAreas.map((a: any) => (
+                    <SelectItem key={a.id} value={a.name} className="text-[#F0F4F8]">{a.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -541,204 +590,229 @@ export function Territories() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[#F0F4F8]">Territory Management</h1>
-          <p className="text-[#8B9CB8] text-sm mt-1">Manage geographic territories and boundaries</p>
-        </div>
-        <button
-          onClick={handleAddNew}
-          className="flex items-center gap-2 px-4 py-2 bg-[#C41E3A] hover:bg-[#9B1830] text-white rounded-lg transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Create Territory
-        </button>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-[#0A2A5C] rounded-xl p-4 border border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#3A9EFF]/20 rounded-lg flex items-center justify-center">
-              <Map className="w-5 h-5 text-[#3A9EFF]" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-[#F0F4F8]">{stats.total}</p>
-              <p className="text-xs text-[#8B9CB8]">Total Territories</p>
-            </div>
+      <Tabs defaultValue="territories" className="w-full">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-[#F0F4F8]">Territory Management</h1>
+            <p className="text-[#8B9CB8] text-sm mt-1">Manage geographic territories and boundaries</p>
           </div>
+          <TabsList className="bg-[#0A2A5C] border border-white/10">
+            <TabsTrigger value="territories" className="data-[state=active]:bg-[#3A9EFF]">
+              <MapPin className="w-4 h-4 mr-2" />
+              Territories
+            </TabsTrigger>
+            {['country_head', 'regional_manager', 'area_manager'].includes(user?.role || '') && (
+              <TabsTrigger value="hierarchy" className="data-[state=active]:bg-[#2ECC71]">
+                <Layers className="w-4 h-4 mr-2" />
+                Hierarchy Management
+              </TabsTrigger>
+            )}
+          </TabsList>
         </div>
-        <div className="bg-[#0A2A5C] rounded-xl p-4 border border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#2ECC71]/20 rounded-lg flex items-center justify-center">
-              <Users className="w-5 h-5 text-[#2ECC71]" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-[#F0F4F8]">{stats.totalCustomers}</p>
-              <p className="text-xs text-[#8B9CB8]">Total Customers</p>
-            </div>
+
+        <TabsContent value="territories" className="space-y-6">
+          {/* Header Action */}
+          <div className="flex justify-end">
+            <button
+              onClick={handleAddNew}
+              className="flex items-center gap-2 px-4 py-2 bg-[#C41E3A] hover:bg-[#9B1830] text-white rounded-lg transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Create Territory
+            </button>
           </div>
-        </div>
-        <div className="bg-[#0A2A5C] rounded-xl p-4 border border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#C41E3A]/20 rounded-lg flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-[#C41E3A]" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-[#F0F4F8]">{stats.totalConversions}</p>
-              <p className="text-xs text-[#8B9CB8]">Conversions</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-[#0A2A5C] rounded-xl p-4 border border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#D4A843]/20 rounded-lg flex items-center justify-center">
-              <Target className="w-5 h-5 text-[#D4A843]" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-[#F0F4F8]">৳{(stats.totalTarget / 1000000).toFixed(1)}M</p>
-              <p className="text-xs text-[#8B9CB8]">Total Target</p>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-4 bg-[#0A2A5C] p-4 rounded-xl border border-white/10">
-        <div className="flex-1 min-w-[250px] relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8B9CB8]" />
-          <input
-            type="text"
-            placeholder="Search territories..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] placeholder:text-[#4A5B7A] focus:border-[#3A9EFF] outline-none"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-[#8B9CB8]" />
-          <select
-            value={filterRegion}
-            onChange={(e) => setFilterRegion(e.target.value)}
-            className="px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] focus:border-[#3A9EFF] outline-none"
-          >
-            <option value="all">All Regions</option>
-            {regions.map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Territories Grid */}
-      <div className="grid grid-cols-3 gap-4">
-        {isLoading ? (
-          <div className="col-span-3 p-12 flex justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#C41E3A]" />
-          </div>
-        ) : filteredTerritories.length === 0 ? (
-          <div className="col-span-3 p-12 text-center bg-[#0A2A5C] rounded-xl border border-white/10">
-            <Map className="w-16 h-16 text-[#4A5B7A] mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-[#F0F4F8]">No territories found</h3>
-            <p className="text-[#8B9CB8] text-sm mt-1">Create your first territory to get started</p>
-          </div>
-        ) : (
-          filteredTerritories.map((territory) => {
-            const color = getColorStyle(territory.color);
-            const stats = territoryStats[territory.id] || { customers: 0, visits: 0, conversions: 0, reps: 0 };
-
-            return (
-              <div key={territory.id} className="bg-[#0A2A5C] rounded-xl border border-white/10 overflow-hidden hover:border-white/20 transition-colors">
-                {/* Color Header */}
-                <div
-                  className="h-2"
-                  style={{ backgroundColor: color.fill }}
-                />
-
-                <div className="p-5">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="font-semibold text-[#F0F4F8]">{territory.name}</h3>
-                      <p className="text-xs text-[#8B9CB8]">{territory.code}</p>
-                    </div>
-                    <div className="relative">
-                      <button
-                        onClick={() => setActionMenuOpen(actionMenuOpen === territory.id ? null : territory.id)}
-                        className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                      >
-                        <MoreVertical className="w-4 h-4 text-[#8B9CB8]" />
-                      </button>
-                      {actionMenuOpen === territory.id && (
-                        <div className="absolute right-0 top-full mt-1 w-40 bg-[#0F3460] rounded-lg border border-white/10 shadow-xl z-10">
-                          <button
-                            onClick={() => handleEdit(territory)}
-                            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#F0F4F8] hover:bg-white/10"
-                          >
-                            <Edit className="w-4 h-4" />
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDelete(territory.id)}
-                            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#E74C5E] hover:bg-[#E74C5E]/10"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Delete
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-sm">
-                      <MapPin className="w-4 h-4 text-[#8B9CB8]" />
-                      <span className="text-[#F0F4F8]">{territory.region}</span>
-                      {territory.area && (
-                        <span className="text-[#8B9CB8]">• {territory.area}</span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2 text-sm">
-                      <Shield className="w-4 h-4 text-[#8B9CB8]" />
-                      <span className="text-[#F0F4F8]">
-                        {(territory.profiles as any)?.full_name || 'No supervisor'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-sm">
-                      <Target className="w-4 h-4 text-[#8B9CB8]" />
-                      <span className="text-[#F0F4F8]">
-                        ৳{(territory.target_monthly || 0).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Stats */}
-                  <div className="grid grid-cols-4 gap-2 mt-4 pt-4 border-t border-white/10">
-                    <div className="text-center">
-                      <p className="text-lg font-bold text-[#F0F4F8]">{stats.reps}</p>
-                      <p className="text-[10px] text-[#8B9CB8]">Reps</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-lg font-bold text-[#3A9EFF]">{stats.customers}</p>
-                      <p className="text-[10px] text-[#8B9CB8]">Cust.</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-lg font-bold text-[#D4A843]">{stats.visits}</p>
-                      <p className="text-[10px] text-[#8B9CB8]">Visits</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-lg font-bold text-[#2ECC71]">{stats.conversions}</p>
-                      <p className="text-[10px] text-[#8B9CB8]">Conv.</p>
-                    </div>
-                  </div>
+          {/* Stats Cards */}
+          <div className="grid grid-cols-4 gap-4">
+            <div className="bg-[#0A2A5C] rounded-xl p-4 border border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#3A9EFF]/20 rounded-lg flex items-center justify-center">
+                  <Map className="w-5 h-5 text-[#3A9EFF]" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-[#F0F4F8]">{stats.total}</p>
+                  <p className="text-xs text-[#8B9CB8]">Total Territories</p>
                 </div>
               </div>
-            );
-          })
+            </div>
+            <div className="bg-[#0A2A5C] rounded-xl p-4 border border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#2ECC71]/20 rounded-lg flex items-center justify-center">
+                  <Users className="w-5 h-5 text-[#2ECC71]" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-[#F0F4F8]">{stats.totalCustomers}</p>
+                  <p className="text-xs text-[#8B9CB8]">Total Customers</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-[#0A2A5C] rounded-xl p-4 border border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#C41E3A]/20 rounded-lg flex items-center justify-center">
+                  <TrendingUp className="w-5 h-5 text-[#C41E3A]" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-[#F0F4F8]">{stats.totalConversions}</p>
+                  <p className="text-xs text-[#8B9CB8]">Conversions</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-[#0A2A5C] rounded-xl p-4 border border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#D4A843]/20 rounded-lg flex items-center justify-center">
+                  <Target className="w-5 h-5 text-[#D4A843]" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-[#F0F4F8]">৳{(stats.totalTarget / 1000000).toFixed(1)}M</p>
+                  <p className="text-xs text-[#8B9CB8]">Total Target</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-4 bg-[#0A2A5C] p-4 rounded-xl border border-white/10">
+            <div className="flex-1 min-w-[250px] relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8B9CB8]" />
+              <input
+                type="text"
+                placeholder="Search territories..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] placeholder:text-[#4A5B7A] focus:border-[#3A9EFF] outline-none"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-[#8B9CB8]" />
+              <select
+                value={filterRegion}
+                onChange={(e) => setFilterRegion(e.target.value)}
+                className="px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] focus:border-[#3A9EFF] outline-none"
+              >
+                <option value="all">All Regions</option>
+                {regions.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Territories Grid */}
+          <div className="grid grid-cols-3 gap-4">
+            {isLoading ? (
+              <div className="col-span-3 p-12 flex justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#C41E3A]" />
+              </div>
+            ) : filteredTerritories.length === 0 ? (
+              <div className="col-span-3 p-12 text-center bg-[#0A2A5C] rounded-xl border border-white/10">
+                <Map className="w-16 h-16 text-[#4A5B7A] mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-[#F0F4F8]">No territories found</h3>
+                <p className="text-[#8B9CB8] text-sm mt-1">Create your first territory to get started</p>
+              </div>
+            ) : (
+              filteredTerritories.map((territory) => {
+                const color = getColorStyle(territory.color);
+                const stats = territoryStats[territory.id] || { customers: 0, visits: 0, conversions: 0, reps: 0 };
+
+                return (
+                  <div key={territory.id} className="bg-[#0A2A5C] rounded-xl border border-white/10 overflow-hidden hover:border-white/20 transition-colors">
+                    {/* Color Header */}
+                    <div
+                      className="h-2"
+                      style={{ backgroundColor: color.fill }}
+                    />
+
+                    <div className="p-5">
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <h3 className="font-semibold text-[#F0F4F8]">{territory.name}</h3>
+                          <p className="text-xs text-[#8B9CB8]">{territory.code}</p>
+                        </div>
+                        <div className="relative">
+                          <button
+                            onClick={() => setActionMenuOpen(actionMenuOpen === territory.id ? null : territory.id)}
+                            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                          >
+                            <MoreVertical className="w-4 h-4 text-[#8B9CB8]" />
+                          </button>
+                          {actionMenuOpen === territory.id && (
+                            <div className="absolute right-0 top-full mt-1 w-40 bg-[#0F3460] rounded-lg border border-white/10 shadow-xl z-10">
+                              <button
+                                onClick={() => handleEdit(territory)}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#F0F4F8] hover:bg-white/10"
+                              >
+                                <Edit className="w-4 h-4" />
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDelete(territory.id)}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#E74C5E] hover:bg-[#E74C5E]/10"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-sm">
+                          <MapPin className="w-4 h-4 text-[#8B9CB8]" />
+                          <span className="text-[#F0F4F8]">{territory.region}</span>
+                          {territory.area && (
+                            <span className="text-[#8B9CB8]">• {territory.area}</span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 text-sm">
+                          <Shield className="w-4 h-4 text-[#8B9CB8]" />
+                          <span className="text-[#F0F4F8]">
+                            {(territory.profiles as any)?.full_name || 'No supervisor'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-sm">
+                          <Target className="w-4 h-4 text-[#8B9CB8]" />
+                          <span className="text-[#F0F4F8]">
+                            ৳{(territory.target_monthly || 0).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Stats */}
+                      <div className="grid grid-cols-4 gap-2 mt-4 pt-4 border-t border-white/10">
+                        <div className="text-center">
+                          <p className="text-lg font-bold text-[#F0F4F8]">{stats.reps}</p>
+                          <p className="text-[10px] text-[#8B9CB8]">Reps</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-lg font-bold text-[#3A9EFF]">{stats.customers}</p>
+                          <p className="text-[10px] text-[#8B9CB8]">Cust.</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-lg font-bold text-[#D4A843]">{stats.visits}</p>
+                          <p className="text-[10px] text-[#8B9CB8]">Visits</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-lg font-bold text-[#2ECC71]">{stats.conversions}</p>
+                          <p className="text-[10px] text-[#8B9CB8]">Conv.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </TabsContent>
+
+        {['country_head', 'regional_manager', 'area_manager'].includes(user?.role || '') && (
+          <TabsContent value="hierarchy">
+            <HierarchyManagement />
+          </TabsContent>
         )}
-      </div>
+      </Tabs>
 
       {/* Territory Modal */}
       <TerritoryModal

@@ -221,6 +221,9 @@ function UsersManagement() {
     role: 'sales_rep' as 'sales_rep' | 'supervisor' | 'area_manager' | 'regional_manager' | 'country_head',
     phone: '',
     reports_to: '', // Manager/Supervisor user ID
+    region_id: '',
+    area_id: '',
+    territory_id: '',
   });
 
   const { data: users = [], isLoading, refetch } = useQuery({
@@ -317,6 +320,47 @@ function UsersManagement() {
     },
     enabled: newUser.role !== 'country_head', // Only fetch if not country head
   });
+
+  // --- Hierarchy Data Fetching for Admin ---
+  const { data: regions = [] } = useQuery({
+    queryKey: ['regions'],
+    queryFn: async () => {
+      const { data } = await supabase.from('regions').select('*').order('name');
+      return data || [];
+    },
+  });
+
+  const { data: areas = [] } = useQuery({
+    queryKey: ['areas'],
+    queryFn: async () => {
+      const { data } = await supabase.from('areas').select('*').order('name');
+      return data || [];
+    },
+  });
+
+  const { data: territories = [] } = useQuery({
+    queryKey: ['territories'],
+    queryFn: async () => {
+      const { data } = await supabase.from('territories').select('*').eq('is_active', true).order('name');
+      return data || [];
+    },
+  });
+
+  // Filtered lists for dropdowns
+  const filteredAreas = useMemo(() => {
+    if (!newUser.region_id) return [];
+    return areas.filter((a: any) => a.region_id === newUser.region_id);
+  }, [areas, newUser.region_id]);
+
+  const filteredTerritories = useMemo(() => {
+    if (!newUser.area_id) return [];
+    // Match by area name for now since territories table links via name?
+    // No, I added area_id in SQL but let's see if territories data has it.
+    // To be safe, I'll match by name if ID is missing or match by ID if present.
+    // But wait, newUser.area_id is likely an ID.
+    // Areas table has ID. Territories table has area_id.
+    return territories.filter((t: any) => t.area_id === newUser.area_id);
+  }, [territories, newUser.area_id]);
 
   const resetPassword = useMutation({
     mutationFn: async (userId: string) => {
@@ -438,6 +482,9 @@ function UsersManagement() {
           role: userData.role,
           phone: userData.phone,
           reports_to: userData.reports_to || null, // Manager/Supervisor ID
+          region_id: userData.region_id || null,
+          area_id: userData.area_id || null,
+          territory_id: userData.territory_id || null,
           is_active: true,
         }, {
           onConflict: 'id'
@@ -462,6 +509,9 @@ function UsersManagement() {
         role: 'sales_rep',
         phone: '',
         reports_to: '',
+        region_id: '',
+        area_id: '',
+        territory_id: '',
       });
     },
     onError: (error: any) => {
@@ -671,6 +721,64 @@ function UsersManagement() {
                   <option value="country_head">Country Head</option>
                 </select>
               </div>
+
+              {/* Hierarchy Assignment */}
+              {newUser.role !== 'country_head' && (
+                <div className="space-y-4 border-t border-white/10 pt-4">
+                  <h3 className="text-sm font-medium text-[#F0F4F8]">Territory & Location</h3>
+
+                  {/* Region Selection (All roles except CH) */}
+                  <div className="space-y-2">
+                    <label className="text-sm text-[#8B9CB8]">Region</label>
+                    <select
+                      value={newUser.region_id}
+                      onChange={(e) => setNewUser({ ...newUser, region_id: e.target.value, area_id: '', territory_id: '' })}
+                      className="w-full px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] focus:border-[#3A9EFF] outline-none"
+                    >
+                      <option value="">Select Region...</option>
+                      {regions.map((r: any) => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Area Selection (AM, Supervisor, Sales Rep) */}
+                  {['area_manager', 'supervisor', 'sales_rep'].includes(newUser.role) && (
+                    <div className="space-y-2">
+                      <label className="text-sm text-[#8B9CB8]">Area</label>
+                      <select
+                        value={newUser.area_id}
+                        onChange={(e) => setNewUser({ ...newUser, area_id: e.target.value, territory_id: '' })}
+                        disabled={!newUser.region_id}
+                        className="w-full px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] focus:border-[#3A9EFF] outline-none disabled:opacity-50"
+                      >
+                        <option value="">Select Area...</option>
+                        {filteredAreas.map((a: any) => (
+                          <option key={a.id} value={a.id}>{a.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Territory Selection (Sales Rep Only) */}
+                  {newUser.role === 'sales_rep' && (
+                    <div className="space-y-2">
+                      <label className="text-sm text-[#8B9CB8]">Territory</label>
+                      <select
+                        value={newUser.territory_id}
+                        onChange={(e) => setNewUser({ ...newUser, territory_id: e.target.value })}
+                        disabled={!newUser.area_id}
+                        className="w-full px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] focus:border-[#3A9EFF] outline-none disabled:opacity-50"
+                      >
+                        <option value="">Select Territory...</option>
+                        {filteredTerritories.map((t: any) => (
+                          <option key={t.id} value={t.id}>{t.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
               {/* Reports To Dropdown */}
               {newUser.role !== 'country_head' && (
                 <div className="space-y-2">

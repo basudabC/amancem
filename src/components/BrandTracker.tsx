@@ -280,6 +280,7 @@ export function BrandTracker({ customerId, initialRecords = [], onRecordsChange 
 
                         <div className="flex items-end">
                             <Button
+                                type="button"
                                 onClick={handleAddRecord}
                                 disabled={isAdding}
                                 className="w-full h-8 bg-[#2ECC71] hover:bg-[#27AE60] text-xs"
