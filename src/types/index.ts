@@ -10,6 +10,7 @@ export type UserRole = 'sales_rep' | 'supervisor' | 'area_manager' | 'regional_m
 // ... existing types
 
 export interface CustomerFormData {
+  id?: string;
   name: string;
   owner_name?: string;
   owner_age?: number;
@@ -42,6 +43,7 @@ export interface CustomerFormData {
   structure_type?: StructureType;
   construction_stage?: number;
   project_started?: boolean;
+  cement_consumed?: number;
   current_brand?: string;
   notes?: string;
   tags?: string[];
@@ -275,4 +277,7 @@ export interface Visit {
   customer_name?: string;
   sales_rep_name?: string;
   customer?: Customer;
+  customer_lat?: number;
+  customer_lng?: number;
+  customer_pipeline?: PipelineType;
 }

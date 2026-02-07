@@ -10,24 +10,28 @@ import { useAuthStore } from '@/store/authStore';
 import { useCustomers } from '@/hooks/useCustomers';
 import type { Customer, Visit } from '@/types';
 import {
+  Calendar as CalendarIcon,
+  Plus,
+  MapPin,
+  Clock,
+  MoreVertical,
+  CheckCircle2,
+  X,
+  AlertCircle,
+  Navigation,
+  ArrowRight,
+  TrendingUp,
+  Play,
   CalendarCheck,
   Search,
   Filter,
-  MapPin,
-  Clock,
-  CheckCircle2,
-  MoreVertical,
   Calendar,
   User,
-  Building2,
-  ArrowRight,
-  TrendingUp,
-  AlertCircle,
-  X,
-  Play // For 'Visit' action
+  Building2
 } from 'lucide-react';
 import { format, isToday, parseISO } from 'date-fns';
 import { toast } from 'sonner';
+import { useSettings } from '@/hooks/useSettings';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -114,6 +118,22 @@ function ScheduleModal({ isOpen, onClose, customer }: ScheduleModalProps) {
   );
 }
 
+// Haversine distance calculation (in meters)
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3; // metres
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const Δφ = (lat2 - lat1) * Math.PI / 180;
+  const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) *
+    Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
+}
+
 // Check-in Modal
 function CheckInModal({
   isOpen,
@@ -132,6 +152,35 @@ function CheckInModal({
   const [feedback, setFeedback] = useState('');
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationError, setLocationError] = useState('');
+  const [distance, setDistance] = useState<number | null>(null);
+  const [isWithinRange, setIsWithinRange] = useState<boolean>(false);
+
+  // ... (inside CheckInModal)
+  const { data: settings } = useSettings();
+
+  // Validate location against customer coordinates
+  const validateLocation = (currentLat: number, currentLng: number) => {
+    console.log('Validating Location:', {
+      current: { lat: currentLat, lng: currentLng },
+      customer: { lat: visit?.customer_lat, lng: visit?.customer_lng },
+      settings: settings
+    });
+
+    if (visit?.customer_lat && visit?.customer_lng) {
+      const dist = calculateDistance(currentLat, currentLng, visit.customer_lat, visit.customer_lng);
+      const radius = settings?.visit_geofence_radius || 200;
+
+      console.log('Distance Calc:', { dist, radius, isWithin: dist <= radius });
+
+      setDistance(dist);
+      setIsWithinRange(dist <= radius);
+    } else {
+      console.log('No customer coordinates, bypassing strict check');
+      // STRICT MODE: If customer has no location, we cannot verify range, so we BLOCK check-in
+      setDistance(null);
+      setIsWithinRange(false);
+    }
+  };
 
   const getCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -140,34 +189,53 @@ function CheckInModal({
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const speed = pos.coords.speed ? pos.coords.speed * 3.6 : 0; // Convert m/s to km/h
+
+        setLocation({ lat, lng });
         setLocationError('');
+
+        // Speed Validation
+        if (settings?.max_check_in_speed && speed > settings.max_check_in_speed) {
+          setLocationError(`Speed too high (${speed.toFixed(1)} km/h). Max allowed: ${settings.max_check_in_speed} km/h. Please stop moving to check in.`);
+          return; // Prevent setting location if speed is too high
+        }
+
+        validateLocation(lat, lng);
       },
-      (err) => setLocationError(err.message)
+      (err) => setLocationError(err.message),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 
   const checkInMutation = useMutation({
     mutationFn: async () => {
       if (!location || !visit) throw new Error('Location required');
+
       const { error } = await supabase.from('visits').update({
         checked_in_at: new Date().toISOString(),
         check_in_lat: location.lat,
         check_in_lng: location.lng,
+        check_in_accuracy: distance, // Storing distance as accuracy for now or create specific column
+        distance_from_customer: distance,
+        is_within_geofence: isWithinRange,
         status: 'in_progress'
       }).eq('id', visit.id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['visit-list'] });
-      toast.success('Checked in');
+      toast.success(isWithinRange ? 'Checked in successfully' : 'Checked in with Location Warning');
       onClose();
     }
   });
 
   const checkOutMutation = useMutation({
     mutationFn: async () => {
-      if (!location || !visit) throw new Error('Location required');
+      // Re-validate location on check-out
+      if (!location) throw new Error('Location required for check-out');
+
       const { error } = await supabase.from('visits').update({
         checked_out_at: new Date().toISOString(),
         check_out_lat: location.lat,
@@ -178,7 +246,7 @@ function CheckInModal({
         purpose: subject,
         feedback: feedback,
         products_discussed: salesDiscuss ? salesDiscuss.split(',').map(s => s.trim()) : []
-      }).eq('id', visit.id);
+      }).eq('id', visit?.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -190,11 +258,11 @@ function CheckInModal({
   });
 
   if (!isOpen || !visit) return null;
-  const isCheckedIn = !!visit.checked_in_at; // Note: Database field might be checkin_at or checked_in_at? Types say checked_in_at, hook says checkin_at? Checking hook useCustomerVisits... it maps checkin_at.
+  const isCheckedIn = !!visit.checked_in_at;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#0A2A5C] rounded-xl border border-white/10 w-full max-w-lg">
+      <div className="bg-[#0A2A5C] rounded-xl border border-white/10 w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="p-4 border-b border-white/10 flex justify-between">
           <h2 className="text-lg font-semibold text-[#F0F4F8]">{isCheckedIn ? 'Complete Visit' : 'Check In'}</h2>
           <button onClick={onClose}><X className="w-5 h-5 text-[#8B9CB8]" /></button>
@@ -202,16 +270,64 @@ function CheckInModal({
         <div className="p-6 space-y-4">
           <div className="bg-[#061A3A] p-3 rounded-lg">
             <p className="text-[#F0F4F8] font-medium">{visit.customer_name}</p>
-            <p className="text-sm text-[#8B9CB8]">{visit.scheduled_at ? format(parseISO(visit.scheduled_at), 'h:mm a') : ''}</p>
+            <p className="text-sm text-[#8B9CB8] mb-1">{visit.scheduled_at ? format(parseISO(visit.scheduled_at), 'h:mm a') : ''}</p>
+            {visit.customer_lat && visit.customer_lng ? (
+              <div className="flex items-center gap-1 text-xs text-[#8B9CB8]">
+                <MapPin className="w-3 h-3" />
+                Store Location: {visit.customer_lat.toFixed(4)}, {visit.customer_lng.toFixed(4)}
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 text-xs text-[#D4A843]">
+                <AlertCircle className="w-3 h-3" />
+                Store location not set
+              </div>
+            )}
           </div>
+
+          {/* Working Hours Warning */}
+          {(() => {
+            if (!settings) return null;
+            const now = new Date();
+            const currentTime = now.getHours() * 60 + now.getMinutes();
+            const [startH, startM] = settings.working_hours_start.split(':').map(Number);
+            const [endH, endM] = settings.working_hours_end.split(':').map(Number);
+            const startTime = startH * 60 + startM;
+            const endTime = endH * 60 + endM;
+
+            if (currentTime < startTime || currentTime > endTime) {
+              return (
+                <div className="flex items-center gap-2 p-2 bg-[#D4A843]/10 border border-[#D4A843]/30 rounded-lg text-[#D4A843] text-xs">
+                  <Clock className="w-4 h-4" />
+                  <span>Outside Working Hours ({settings.working_hours_start} - {settings.working_hours_end})</span>
+                </div>
+              );
+            }
+            return null;
+          })()}
 
           {!location ? (
             <Button onClick={getCurrentLocation} variant="outline" className="w-full border-[#3A9EFF] text-[#3A9EFF]">
-              <MapPin className="w-4 h-4 mr-2" /> Get Location
+              <MapPin className="w-4 h-4 mr-2" /> Get My Location
             </Button>
           ) : (
-            <div className="flex items-center gap-2 text-[#2ECC71] text-sm bg-[#2ECC71]/10 p-2 rounded">
-              <CheckCircle2 className="w-4 h-4" /> Location Accuracy: High
+            <div className={`flex flex-col gap-2 p-3 rounded-lg border ${isWithinRange ? 'bg-[#2ECC71]/10 border-[#2ECC71]/30' : 'bg-[#E74C5E]/10 border-[#E74C5E]/30'}`}>
+              <div className="flex items-center gap-2">
+                {isWithinRange ? <CheckCircle2 className="w-4 h-4 text-[#2ECC71]" /> : <AlertCircle className="w-4 h-4 text-[#E74C5E]" />}
+                <span className={`text-sm font-medium ${isWithinRange ? 'text-[#2ECC71]' : 'text-[#E74C5E]'}`}>
+                  {isWithinRange ? 'Location Verified' : distance === null ? 'Shop Location Missing' : 'Location Mismatch'}
+                </span>
+              </div>
+              {distance !== null ? (
+                <p className="text-xs text-[#8B9CB8] ml-6">
+                  Distance from shop: <span className="text-[#F0F4F8]">{Math.round(distance)} meters</span>
+                  <br />
+                  (Allowed range: {settings?.visit_geofence_radius || 200}m)
+                </p>
+              ) : (
+                <p className="text-xs text-[#E74C5E] ml-6">
+                  Cannot verify location. Please set shop location in customer details.
+                </p>
+              )}
             </div>
           )}
           {locationError && <p className="text-[#E74C5E] text-sm">{locationError}</p>}
@@ -272,7 +388,13 @@ function CheckInModal({
 
           <div className="flex justify-end pt-2">
             {!isCheckedIn ? (
-              <Button onClick={() => checkInMutation.mutate()} disabled={!location} className="bg-[#2ECC71] hover:bg-[#27ae60]">Check In</Button>
+              <Button
+                onClick={() => checkInMutation.mutate()}
+                disabled={!location || !isWithinRange}
+                className={`text-white ${isWithinRange ? 'bg-[#2ECC71] hover:bg-[#27ae60]' : 'bg-[#8B9CB8] cursor-not-allowed opacity-50'}`}
+              >
+                {isWithinRange ? 'Check In' : distance === null ? 'Check In Blocked' : 'Move Closer to Check In'}
+              </Button>
             ) : (
               <Button onClick={() => checkOutMutation.mutate()} disabled={!location} className="bg-[#C41E3A] hover:bg-[#9B1830]">Complete Visit</Button>
             )}
@@ -283,8 +405,32 @@ function CheckInModal({
   );
 }
 
+// Error Modal
+function ErrorModal({ isOpen, onClose, title, message }: { isOpen: boolean; onClose: () => void; title: string; message: string }) {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-[#0A2A5C] rounded-xl border border-[#E74C5E]/50 w-full max-w-sm shadow-[0_0_50px_-12px_rgba(231,76,94,0.5)]">
+        <div className="p-6 text-center space-y-4">
+          <div className="w-12 h-12 rounded-full bg-[#E74C5E]/20 flex items-center justify-center mx-auto">
+            <AlertCircle className="w-6 h-6 text-[#E74C5E]" />
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-[#F0F4F8] mb-2">{title}</h3>
+            <p className="text-[#8B9CB8] text-sm">{message}</p>
+          </div>
+          <Button onClick={onClose} className="w-full bg-[#E74C5E] hover:bg-[#C41E3A] text-white">
+            Understood
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Visits() {
   const { user } = useAuthStore();
+  const { data: settings } = useSettings(); // Need settings for instant visit check
   const [viewMode, setViewMode] = useState<'shops' | 'schedule'>('shops');
   const [searchQuery, setSearchQuery] = useState('');
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
@@ -292,6 +438,28 @@ export function Visits() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
   const [isInstantVisiting, setIsInstantVisiting] = useState(false);
+
+  // Error Modal State
+  const [errorModalOpen, setErrorModalOpen] = useState(false);
+  const [errorTitle, setErrorTitle] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const queryClient = useQueryClient();
+
+  // Helper to log notification
+  const logErrorNotification = async (title: string, message: string) => {
+    try {
+      await supabase.from('notifications').insert({
+        user_id: user?.id,
+        title: title,
+        message: message,
+        type: 'alert',
+        is_read: false
+      });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    } catch (e) {
+      console.error('Failed to log notification', e);
+    }
+  };
 
   // Instant Visit Logic
   const handleInstantVisit = async (customer: Customer) => {
@@ -304,9 +472,49 @@ export function Visits() {
       });
 
       let loc = { lat: 0, lng: 0 };
-      try { loc = await getLoc(); } catch (e) { console.warn('Could not get loc for instant visit init', e); }
+      try { loc = await getLoc(); } catch (e) {
+        throw new Error('Could not get location. Location is required for visit.');
+      }
 
-      // 2. Create Visit
+      // 2. Validate Geofence (Strict Check)
+      if (customer.lat && customer.lng) {
+        const dist = calculateDistance(loc.lat, loc.lng, customer.lat, customer.lng);
+        const radius = settings?.visit_geofence_radius || 200;
+
+        console.log('Instant Visit Check:', {
+          shop: customer.name,
+          userLoc: loc,
+          shopLoc: { lat: customer.lat, lng: customer.lng },
+          distance: dist,
+          radius: radius,
+          allowed: dist <= radius
+        });
+
+        if (dist > radius) {
+          const title = 'Location Mismatch';
+          const msg = `You are ${Math.round(dist)}m away from ${customer.name}. Allowed range is ${radius}m. Please move closer to check in.`;
+
+          setErrorTitle(title);
+          setErrorMessage(msg);
+          setErrorModalOpen(true);
+          logErrorNotification(title, msg);
+
+          throw new Error('GE_ERROR'); // Custom error to skip toast in catch block
+        }
+      } else {
+        // STRICT MODE: Block if no location
+        const title = 'Shop Location Missing';
+        const msg = `${customer.name} does not have a set location. You cannot perform a visit check-in until the location is updated.`;
+
+        setErrorTitle(title);
+        setErrorMessage(msg);
+        setErrorModalOpen(true);
+        logErrorNotification(title, msg);
+
+        throw new Error('GE_ERROR');
+      }
+
+      // 3. Create Visit
       const { data, error } = await supabase.from('visits').insert({
         customer_id: customer.id,
         sales_rep_id: user?.id, // Always assign instant visits to the current user
@@ -315,24 +523,33 @@ export function Visits() {
         checked_in_at: new Date().toISOString(),
         check_in_lat: loc.lat || null,
         check_in_lng: loc.lng || null,
+        check_in_accuracy: 0,
+        distance_from_customer: 0,
+        is_within_geofence: true,
         purpose: 'Instant Visit'
       }).select().single();
 
       if (error) throw error;
 
-      // 3. Open CheckInModal
+      // 4. Open CheckInModal
       // Transform to Visit type
       const visit: Visit = {
         ...data,
         customer_name: customer.name,
-        customer_pipeline: customer.pipeline
+        customer_pipeline: customer.pipeline,
+        customer_lat: customer.lat, // Pass customer coords for validation
+        customer_lng: customer.lng
       };
       setSelectedVisit(visit);
       setCheckInModalOpen(true);
       toast.success(`Started visit for ${customer.name}`);
 
     } catch (err: any) {
-      toast.error('Failed to start visit: ' + err.message);
+      console.error('Instant Visit Error:', err);
+      // Only show generic toast if it's NOT our custom GE_ERROR
+      if (err.message !== 'GE_ERROR') {
+        toast.error(err.message);
+      }
     } finally {
       setIsInstantVisiting(false);
     }
@@ -347,7 +564,7 @@ export function Visits() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('visits')
-        .select('*, customers(name, area, pipeline)')
+        .select('*, customers(name, area, pipeline, lat, lng)') // Fetch lat, lng
         .eq('sales_rep_id', user?.id)
         .gte('scheduled_at', new Date().toISOString().split('T')[0]) // From today
         .order('scheduled_at', { ascending: true });
@@ -358,6 +575,8 @@ export function Visits() {
         ...v,
         customer_name: v.customers?.name,
         customer_pipeline: v.customers?.pipeline,
+        customer_lat: v.customers?.lat,
+        customer_lng: v.customers?.lng,
         // Map db fields
         checked_in_at: v.checked_in_at // Handle mapping if distinct
       })) as Visit[];
@@ -625,6 +844,13 @@ export function Visits() {
         isOpen={checkInModalOpen}
         onClose={() => setCheckInModalOpen(false)}
         visit={selectedVisit}
+      />
+
+      <ErrorModal
+        isOpen={errorModalOpen}
+        onClose={() => setErrorModalOpen(false)}
+        title={errorTitle}
+        message={errorMessage}
       />
     </div>
   );

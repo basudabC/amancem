@@ -23,6 +23,7 @@ import { Settings } from '@/pages/Settings';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { env } from '@/lib/env-validator';
 import { logger } from '@/lib/logger';
+import { LocationTracker } from '@/components/LocationTracker';
 
 // Create Query Client
 const queryClient = new QueryClient({
@@ -66,6 +67,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen bg-[#061A3A]">
+      <LocationTracker />
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header />

@@ -80,18 +80,6 @@ export function Sales() {
                 <div className="flex items-center justify-center py-12">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#C41E3A]" />
                 </div>
-            ) : searchQuery.length === 0 ? (
-                <Card className="bg-[#0A2A5C] border-white/10">
-                    <CardContent className="py-12 text-center">
-                        <Search className="w-16 h-16 mx-auto mb-4 text-[#4A5B7A]" />
-                        <h3 className="text-[#F0F4F8] font-semibold text-lg mb-2">
-                            Start Searching
-                        </h3>
-                        <p className="text-[#8B9CB8]">
-                            Type a shop name, owner name, or phone number to find customers
-                        </p>
-                    </CardContent>
-                </Card>
             ) : filteredCustomers && filteredCustomers.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredCustomers.map((customer) => (
@@ -112,8 +100,8 @@ export function Sales() {
                                     <Badge
                                         variant="outline"
                                         className={`text-xs ${customer.is_converted
-                                                ? 'border-[#2ECC71] text-[#2ECC71]'
-                                                : 'border-[#8B9CB8] text-[#8B9CB8]'
+                                            ? 'border-[#2ECC71] text-[#2ECC71]'
+                                            : 'border-[#8B9CB8] text-[#8B9CB8]'
                                             }`}
                                     >
                                         {customer.is_converted ? 'Converted' : 'Prospect'}
@@ -203,10 +191,10 @@ export function Sales() {
                     <CardContent className="py-12 text-center">
                         <Store className="w-16 h-16 mx-auto mb-4 text-[#4A5B7A]" />
                         <h3 className="text-[#F0F4F8] font-semibold text-lg mb-2">
-                            No customers found
+                            {searchQuery ? 'No customers found' : 'No customers yet'}
                         </h3>
                         <p className="text-[#8B9CB8]">
-                            Try a different search term
+                            {searchQuery ? 'Try a different search term' : 'Add your first customer to get started'}
                         </p>
                     </CardContent>
                 </Card>

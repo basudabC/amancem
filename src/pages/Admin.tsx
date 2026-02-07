@@ -3,7 +3,7 @@
 // System administration for country head
 // ============================================================
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
@@ -1007,11 +1007,11 @@ export function Admin() {
   });
 
   // Update settings when fetched
-  useState(() => {
+  useEffect(() => {
     if (fetchedSettings) {
       setSettings(fetchedSettings);
     }
-  });
+  }, [fetchedSettings]);
 
   const saveSettings = useMutation({
     mutationFn: async (newSettings: AppSettings) => {

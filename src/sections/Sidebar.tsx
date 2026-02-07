@@ -124,10 +124,14 @@ export function Sidebar() {
         {!collapsed ? (
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-[#0F3460] rounded-full flex items-center justify-center">
-                <span className="text-[#F0F4F8] font-semibold">
-                  {user?.full_name?.charAt(0).toUpperCase() || 'U'}
-                </span>
+              <div className="w-10 h-10 bg-[#0F3460] rounded-full flex items-center justify-center overflow-hidden">
+                {user?.avatar_url ? (
+                  <img src={user.avatar_url} alt={user.full_name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-[#F0F4F8] font-semibold">
+                    {user?.full_name?.charAt(0).toUpperCase() || 'U'}
+                  </span>
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[#F0F4F8] text-sm font-medium truncate">

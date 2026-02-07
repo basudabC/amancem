@@ -28,7 +28,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { MapPin, Store, Building2, Calculator } from 'lucide-react';
+import {
+    MapPin,
+    Store,
+    Building2,
+    Calculator,
+    Trash2,
+    Plus
+} from 'lucide-react';
+import { BrandTracker, type BrandRecord } from './BrandTracker';
 import type { Customer, CustomerFormData, PipelineType, StructureType } from '@/types';
 
 interface CustomerFormProps {
@@ -52,7 +60,13 @@ const COMPETITOR_BRANDS = [
     'Bashundhara Cement',
     'Meghna Cement',
     'Crown Cement',
+    'Crown Cement',
     'Shah Cement',
+];
+
+const MONTHS = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
 export function CustomerForm({ open, onOpenChange, customer, onSuccess }: CustomerFormProps) {
@@ -61,6 +75,7 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
     const [cementRequired, setCementRequired] = useState<number>(0);
+    const [brandRecords, setBrandRecords] = useState<BrandRecord[]>([]);
 
     // Form state
     const [formData, setFormData] = useState<Partial<CustomerFormData>>({
@@ -74,6 +89,7 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
     useEffect(() => {
         if (customer && open) {
             setFormData({
+                id: customer.id, // Ensure ID is passed for sub-components
                 name: customer.name,
                 owner_name: customer.owner_name,
                 owner_age: customer.owner_age,
@@ -106,6 +122,7 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                 structure_type: customer.structure_type,
                 construction_stage: customer.construction_stage,
                 project_started: customer.project_started,
+                cement_consumed: customer.cement_consumed,
                 current_brand: customer.current_brand,
                 notes: customer.notes,
                 tags: customer.tags || [],
@@ -120,6 +137,7 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                 promotions_offered: [],
             });
             setPipeline('recurring');
+            setBrandRecords([]);
         }
     }, [customer, open]);
 
@@ -257,24 +275,50 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                 customerData.construction_stage = formData.construction_stage || 0;
                 customerData.project_started = formData.project_started;
                 customerData.current_brand = formData.current_brand;
+                customerData.cement_consumed = formData.cement_consumed || 0;
                 // cement_required will be auto-calculated by trigger
             }
 
             let error;
+            let result;
             if (customer) {
                 // Update existing customer
-                const result = await supabase
+                result = await supabase
                     .from('customers')
                     .update(customerData)
                     .eq('id', customer.id);
                 error = result.error;
             } else {
                 // Insert new customer
-                const result = await supabase.from('customers').insert([customerData]);
+                result = await supabase.from('customers').insert([customerData]).select();
                 error = result.error;
             }
 
             if (error) throw error;
+
+            // If new customer and has brand records, save them
+            if (!customer && pipeline === 'recurring' && brandRecords.length > 0 && result.data) {
+                const newCustomerId = result.data[0].id;
+                const recordsToInsert = brandRecords.map(record => ({
+                    customer_id: newCustomerId,
+                    brand_name: record.brand_name,
+                    month: record.month,
+                    year: record.year,
+                    monthly_volume: record.monthly_volume,
+                    selling_price: record.selling_price,
+                    promotions: record.promotions,
+                    brand_preference_rank: record.brand_preference_rank
+                }));
+
+                const { error: brandError } = await supabase
+                    .from('customer_brand_tracker')
+                    .insert(recordsToInsert);
+
+                if (brandError) {
+                    console.error('Error saving brand records:', brandError);
+                    toast.error('Customer saved, but failed to save brand analysis');
+                }
+            }
 
             toast.success(`${pipeline === 'recurring' ? 'Shop' : 'Project'} ${customer ? 'updated' : 'added'} successfully!`);
             onOpenChange(false);
@@ -287,6 +331,7 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                 competitor_brands: [],
                 promotions_offered: [],
             });
+            setBrandRecords([]);
         } catch (error: any) {
             console.error('Error saving customer:', error);
             toast.error(error.message || 'Failed to save customer');
@@ -297,7 +342,7 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-[#061A3A] border-white/10">
+            <DialogContent className="sm:max-w-[85vw] max-h-[90vh] overflow-y-auto bg-[#061A3A] border-white/10">
                 <DialogHeader>
                     <DialogTitle className="text-[#F0F4F8] text-2xl">
                         {customer ? 'Edit Customer' : 'Add New Customer'}
@@ -444,8 +489,15 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                         </Card>
 
                         {/* Recurring Shop Specific Fields */}
-                        <TabsContent value="recurring" className="mt-0">
+                        <TabsContent value="recurring" className="mt-0 space-y-6">
                             <RecurringShopFields formData={formData} setFormData={setFormData} />
+
+                            {/* Competitor Analysis Tracker */}
+                            <BrandTracker
+                                customerId={formData.id}
+                                initialRecords={brandRecords}
+                                onRecordsChange={setBrandRecords}
+                            />
                         </TabsContent>
 
                         {/* Project Customer Specific Fields */}
@@ -502,132 +554,175 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
 
 // Recurring Shop Fields Component
 function RecurringShopFields({ formData, setFormData }: any) {
+    const [selectedProduct, setSelectedProduct] = useState<string>('');
+    const [selectedMonth, setSelectedMonth] = useState<string>(MONTHS[new Date().getMonth()]);
+    const [volume, setVolume] = useState<string>('');
+    const [price, setPrice] = useState<string>('');
+
+    // Mapping for product keys
+    const productKeys: Record<string, { vol: string, price: string }> = {
+        'AmanCem Advance': { vol: 'monthly_sales_advance', price: 'selling_price_advance' },
+        'AmanCem Advance Plus': { vol: 'monthly_sales_advance_plus', price: 'selling_price_advance_plus' },
+        'AmanCem Green': { vol: 'monthly_sales_green', price: 'selling_price_green' },
+        'AmanCem Basic': { vol: 'monthly_sales_basic', price: 'selling_price_basic' },
+        'AmanCem Classic': { vol: 'monthly_sales_classic', price: 'selling_price_classic' },
+    };
+
+    const handleAddProduct = () => {
+        if (!selectedProduct || !volume || !price) {
+            toast.error('Please fill all fields');
+            return;
+        }
+
+        const keys = productKeys[selectedProduct];
+        setFormData({
+            ...formData,
+            [keys.vol]: parseFloat(volume),
+            [keys.price]: parseFloat(price)
+        });
+
+        // Reset inputs (keep month)
+        setSelectedProduct('');
+        setVolume('');
+        setPrice('');
+        toast.success(`${selectedProduct} added`);
+    };
+
+    const handleRemoveProduct = (product: string) => {
+        const keys = productKeys[product];
+        setFormData({
+            ...formData,
+            [keys.vol]: 0,
+            [keys.price]: 0
+        });
+        toast.success(`${product} removed`);
+    };
+
+    // Get list of added products
+    const addedProducts = Object.keys(productKeys).filter(product => {
+        const keys = productKeys[product];
+        return (formData[keys.vol] > 0 || formData[keys.price] > 0);
+    });
+
     return (
         <div className="space-y-6">
-            {/* Monthly Sales Data */}
+            {/* Monthly Sales & Price Input */}
             <Card className="bg-[#0A2A5C] border-white/10">
                 <CardHeader>
-                    <CardTitle className="text-[#F0F4F8]">Monthly Sales by Product (tons)</CardTitle>
+                    <CardTitle className="text-[#F0F4F8] flex items-center gap-2">
+                        <Store className="w-5 h-5 text-[#3A9EFF]" />
+                        My Monthly Sales
+                    </CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-4">
-                    <div>
-                        <Label className="text-[#8B9CB8] text-sm">AmanCem Advance</Label>
-                        <Input
-                            type="number"
-                            step="0.01"
-                            value={formData.monthly_sales_advance || ''}
-                            onChange={(e) => setFormData({ ...formData, monthly_sales_advance: parseFloat(e.target.value) || 0 })}
-                            className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
-                            placeholder="0.00"
-                        />
-                    </div>
-                    <div>
-                        <Label className="text-[#8B9CB8] text-sm">AmanCem Advance Plus</Label>
-                        <Input
-                            type="number"
-                            step="0.01"
-                            value={formData.monthly_sales_advance_plus || ''}
-                            onChange={(e) => setFormData({ ...formData, monthly_sales_advance_plus: parseFloat(e.target.value) || 0 })}
-                            className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
-                            placeholder="0.00"
-                        />
-                    </div>
-                    <div>
-                        <Label className="text-[#8B9CB8] text-sm">AmanCem Green</Label>
-                        <Input
-                            type="number"
-                            step="0.01"
-                            value={formData.monthly_sales_green || ''}
-                            onChange={(e) => setFormData({ ...formData, monthly_sales_green: parseFloat(e.target.value) || 0 })}
-                            className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
-                            placeholder="0.00"
-                        />
-                    </div>
-                    <div>
-                        <Label className="text-[#8B9CB8] text-sm">AmanCem Basic</Label>
-                        <Input
-                            type="number"
-                            step="0.01"
-                            value={formData.monthly_sales_basic || ''}
-                            onChange={(e) => setFormData({ ...formData, monthly_sales_basic: parseFloat(e.target.value) || 0 })}
-                            className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
-                            placeholder="0.00"
-                        />
-                    </div>
-                    <div>
-                        <Label className="text-[#8B9CB8] text-sm">AmanCem Classic</Label>
-                        <Input
-                            type="number"
-                            step="0.01"
-                            value={formData.monthly_sales_classic || ''}
-                            onChange={(e) => setFormData({ ...formData, monthly_sales_classic: parseFloat(e.target.value) || 0 })}
-                            className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
-                            placeholder="0.00"
-                        />
-                    </div>
-                </CardContent>
-            </Card>
+                <CardContent className="space-y-4">
+                    <div className="space-y-4 bg-[#061A3A] p-4 rounded-lg border border-white/5">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label className="text-[#8B9CB8] text-xs">Select Month</Label>
+                                <Select
+                                    value={selectedMonth}
+                                    onValueChange={setSelectedMonth}
+                                >
+                                    <SelectTrigger className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8]">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-[#0A2A5C] border-white/10">
+                                        {MONTHS.map(month => (
+                                            <SelectItem key={month} value={month} className="text-[#F0F4F8]">
+                                                {month}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-[#8B9CB8] text-xs">Select Product</Label>
+                                <Select
+                                    value={selectedProduct}
+                                    onValueChange={setSelectedProduct}
+                                >
+                                    <SelectTrigger className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8]">
+                                        <SelectValue placeholder="Choose Product" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-[#0A2A5C] border-white/10">
+                                        {AMAN_PRODUCTS.map(product => (
+                                            <SelectItem key={product} value={product} className="text-[#F0F4F8]">
+                                                {product}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
 
-            {/* Selling Prices */}
-            <Card className="bg-[#0A2A5C] border-white/10">
-                <CardHeader>
-                    <CardTitle className="text-[#F0F4F8]">Selling Price per Bag (Tk)</CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-4">
-                    <div>
-                        <Label className="text-[#8B9CB8] text-sm">AmanCem Advance</Label>
-                        <Input
-                            type="number"
-                            step="0.01"
-                            value={formData.selling_price_advance || ''}
-                            onChange={(e) => setFormData({ ...formData, selling_price_advance: parseFloat(e.target.value) || 0 })}
-                            className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
-                            placeholder="520"
-                        />
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label className="text-[#8B9CB8] text-xs">Monthly Volume (tons)</Label>
+                                <Input
+                                    type="number"
+                                    value={volume}
+                                    onChange={(e) => setVolume(e.target.value)}
+                                    className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8]"
+                                    placeholder="0"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-[#8B9CB8] text-xs">Selling Price (Tk/bag)</Label>
+                                <Input
+                                    type="number"
+                                    value={price}
+                                    onChange={(e) => setPrice(e.target.value)}
+                                    className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8]"
+                                    placeholder="0"
+                                />
+                            </div>
+                        </div>
+
+                        <Button
+                            type="button"
+                            onClick={handleAddProduct}
+                            className="w-full bg-[#3A9EFF] hover:bg-[#2D7FCC] text-white"
+                        >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Add Sales Data ({selectedMonth})
+                        </Button>
                     </div>
-                    <div>
-                        <Label className="text-[#8B9CB8] text-sm">AmanCem Advance Plus</Label>
-                        <Input
-                            type="number"
-                            step="0.01"
-                            value={formData.selling_price_advance_plus || ''}
-                            onChange={(e) => setFormData({ ...formData, selling_price_advance_plus: parseFloat(e.target.value) || 0 })}
-                            className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
-                            placeholder="540"
-                        />
-                    </div>
-                    <div>
-                        <Label className="text-[#8B9CB8] text-sm">AmanCem Green</Label>
-                        <Input
-                            type="number"
-                            step="0.01"
-                            value={formData.selling_price_green || ''}
-                            onChange={(e) => setFormData({ ...formData, selling_price_green: parseFloat(e.target.value) || 0 })}
-                            className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
-                            placeholder="530"
-                        />
-                    </div>
-                    <div>
-                        <Label className="text-[#8B9CB8] text-sm">AmanCem Basic</Label>
-                        <Input
-                            type="number"
-                            step="0.01"
-                            value={formData.selling_price_basic || ''}
-                            onChange={(e) => setFormData({ ...formData, selling_price_basic: parseFloat(e.target.value) || 0 })}
-                            className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
-                            placeholder="500"
-                        />
-                    </div>
-                    <div>
-                        <Label className="text-[#8B9CB8] text-sm">AmanCem Classic</Label>
-                        <Input
-                            type="number"
-                            step="0.01"
-                            value={formData.selling_price_classic || ''}
-                            onChange={(e) => setFormData({ ...formData, selling_price_classic: parseFloat(e.target.value) || 0 })}
-                            className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
-                            placeholder="480"
-                        />
+
+                    {/* List of Added Products */}
+                    <div className="space-y-3">
+                        {addedProducts.length === 0 ? (
+                            <div className="text-center text-[#8B9CB8] py-4 text-sm border border-dashed border-white/10 rounded-lg">
+                                No sales data added yet.
+                            </div>
+                        ) : (
+                            addedProducts.map(product => {
+                                const keys = productKeys[product];
+                                return (
+                                    <div key={product} className="bg-[#061A3A] p-3 rounded-lg border border-white/10 flex justify-between items-center group">
+                                        <div>
+                                            <h4 className="text-[#F0F4F8] font-medium text-sm">{product}</h4>
+                                            <div className="flex gap-4 mt-1">
+                                                <p className="text-[#8B9CB8] text-xs">
+                                                    Vol: <span className="text-[#F0F4F8]">{formData[keys.vol]} tons</span>
+                                                </p>
+                                                <p className="text-[#8B9CB8] text-xs">
+                                                    Price: <span className="text-[#F0F4F8]">৳{formData[keys.price]}</span>
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => handleRemoveProduct(product)}
+                                            className="text-[#8B9CB8] hover:text-[#E74C5E] hover:bg-white/5"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                );
+                            })
+                        )}
                     </div>
                 </CardContent>
             </Card>
@@ -754,6 +849,31 @@ function ProjectCustomerFields({ formData, setFormData, cementRequired }: any) {
                                 className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
                                 placeholder="Heidelberg"
                             />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <Label className="text-[#F0F4F8]">Cement Consumed (tons)</Label>
+                            <Input
+                                type="number"
+                                value={formData.cement_consumed || ''}
+                                onChange={(e) => setFormData({ ...formData, cement_consumed: parseFloat(e.target.value) })}
+                                className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
+                                placeholder="50"
+                            />
+                        </div>
+                        <div className="flex items-end pb-2">
+                            <div className="flex items-center space-x-2">
+                                <input
+                                    type="checkbox"
+                                    id="project_started"
+                                    checked={formData.project_started || false}
+                                    onChange={(e) => setFormData({ ...formData, project_started: e.target.checked })}
+                                    className="w-4 h-4 rounded border-gray-300 text-[#C41E3A] focus:ring-[#C41E3A]"
+                                />
+                                <Label htmlFor="project_started" className="text-[#F0F4F8] cursor-pointer">Project Already Started?</Label>
+                            </div>
                         </div>
                     </div>
 
