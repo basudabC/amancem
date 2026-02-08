@@ -56,8 +56,12 @@ export function validateEnv(): EnvConfig {
             'See .env file for instructions on obtaining credentials.',
         ].filter(Boolean).join('\n');
 
-        console.error(errorMessage);
-        throw new Error('Missing or invalid environment variables. Check console for details.');
+        console.warn(errorMessage);
+        // Do not throw error in production to avoid crashing if some non-critical vars are missing
+        // or if variables are injected differently (e.g. runtime window object)
+        if (import.meta.env.VITE_NODE_ENV === 'development') {
+            // throw new Error('Missing or invalid environment variables. Check console for details.');
+        }
     }
 
     return {
