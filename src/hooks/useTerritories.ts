@@ -70,13 +70,7 @@ export const useTerritory = (id: string) => {
 
       const t = territory as any;
       return {
-        id: t.id,
-        name: t.name,
-        parent_id: t.parent_id,
-        level: t.level,
-        boundary: t.boundary,
-        color_key: t.color_key,
-        created_at: t.created_at,
+        ...t,
         stats: {
           totalCustomers: customers?.length || 0,
           recurringCount,

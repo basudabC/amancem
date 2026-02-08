@@ -96,6 +96,14 @@ export interface Territory {
   color_key?: string;
   level?: string;
   parent_id?: string;
+  stats?: {
+    totalCustomers: number;
+    recurringCount: number;
+    projectCount: number;
+    monthlyVolume: number;
+    activeReps: number;
+    conversionRate: number;
+  };
 }
 
 export interface GPSValidationResult {
@@ -142,6 +150,12 @@ export interface Customer {
   // Owner information (NEW)
   owner_name?: string;
   owner_age?: number;
+
+  // Aliases for ProjectCustomerData compatibility
+  built_up_area_sqft?: number; // alias for built_up_area
+  construction_stage_percent?: number; // alias for construction_stage
+  cement_requirement_tons?: number; // new field
+  cement_consumed_tons?: number; // alias for cement_consumed
 
   // For recurring customers (shops)
   shop_name?: string;
@@ -282,4 +296,30 @@ export interface Visit {
   customer_lat?: number;
   customer_lng?: number;
   customer_pipeline?: PipelineType;
+}
+
+export type AmanProduct =
+  | 'AmanCem Advance'
+  | 'AmanCem Advance Plus'
+  | 'AmanCem Green'
+  | 'AmanCem Basic'
+  | 'AmanCem Classic';
+
+export interface ConversionFormData {
+  customer_id: string;
+  visit_id?: string;
+  payment_type: PaymentType;
+  product?: AmanProduct;
+  quantity_bags?: number;
+  unit_price?: number;
+  cash_amount?: number;
+  credit_amount?: number;
+  credit_days?: number;
+  delivery_address?: string;
+  delivery_lat?: number;
+  delivery_lng?: number;
+  expected_delivery_date?: string;
+  construction_stage_update?: number;
+  cement_consumed_update?: number;
+  sale_notes?: string;
 }

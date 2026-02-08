@@ -250,8 +250,9 @@ function UsersManagement() {
             console.log('🔐 Auth data fetched:', authData?.users?.length, 'users');
 
             // Merge auth data with profiles
+            const users = (authData?.users || []) as any[];
             const enrichedProfiles = profiles.map(profile => {
-              const authUser = authData?.users?.find(u => u.id === profile.id);
+              const authUser = users.find(u => u.id === profile.id);
               return {
                 ...profile,
                 last_login_at: authUser?.last_sign_in_at || null,
