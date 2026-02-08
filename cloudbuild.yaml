@@ -1,7 +1,16 @@
 steps:
   # Build the container image (with --no-cache to force fresh build)
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '--no-cache', '-t', 'gcr.io/$PROJECT_ID/aman-cement-crm', '.']
+    args: 
+      - 'build'
+      - '--no-cache'
+      - '--build-arg'
+      - 'VITE_SUPABASE_URL=${_VITE_SUPABASE_URL}'
+      - '--build-arg'
+      - 'VITE_SUPABASE_ANON_KEY=${_VITE_SUPABASE_ANON_KEY}'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/aman-cement-crm'
+      - '.'
   
   # Push the container image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'

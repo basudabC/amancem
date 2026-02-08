@@ -9,7 +9,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseServiceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl) {
-    throw new Error('Missing VITE_SUPABASE_URL environment variable');
+    console.warn('Missing VITE_SUPABASE_URL environment variable - Admin client disabled');
 }
 
 if (!supabaseServiceRoleKey) {

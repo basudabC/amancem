@@ -3,6 +3,14 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Accept build arguments for Vite environment variables
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+
+# Set them as environment variables for the build process
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+
 # Copy package files
 COPY package.json package-lock.json ./
 
@@ -12,13 +20,7 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build the application
-# Note: Ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are provided as build args or environment variables if needed during build time (usually runtime for client-side)
-# However, Vite embeds env vars starting with VITE_ at build time. 
-# For Cloud Run, usually we want to inject these at runtime, but Vite is static.
-# We will assume environment variables are passed as build args or .env is copied (we dockerignored .env).
-# Best practice for Vite in Docker: Pass args or use a placeholder replacement script at runtime.
-# For simplicity, we'll assume the user will build with necessary args or use a generic build.
+# Build the application with environment variables embedded
 RUN npm run build
 
 # Stage 2: Serve
