@@ -112,11 +112,15 @@ export interface GPSValidationResult {
   message?: string;
 }
 
-export interface ProjectCustomerData extends CustomerFormData {
+export interface ProjectCustomerData {
   built_up_area_sqft: number;
+  number_of_floors: number;
+  structure_type: StructureType;
   construction_stage_percent: number;
   cement_requirement_tons: number;
   cement_consumed_tons: number;
+  current_brand?: string;
+  project_started: boolean;
 }
 
 
