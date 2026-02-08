@@ -1,16 +1,19 @@
 steps:
   # Build the container image (with --no-cache to force fresh build)
+  # Build the container image (with --no-cache to force fresh build)
+  # using Secret Manager to get environment variables
   - name: 'gcr.io/cloud-builders/docker'
-    args: 
-      - 'build'
-      - '--no-cache'
-      - '--build-arg'
-      - 'VITE_SUPABASE_URL=${_VITE_SUPABASE_URL}'
-      - '--build-arg'
-      - 'VITE_SUPABASE_ANON_KEY=${_VITE_SUPABASE_ANON_KEY}'
-      - '-t'
-      - 'gcr.io/$PROJECT_ID/aman-cement-crm'
-      - '.'
+    entrypoint: 'bash'
+    args:
+    - '-c'
+    - |
+      echo "$$AMANEDGE_SECRET" > .env
+      source .env
+      docker build --no-cache \
+        --build-arg VITE_SUPABASE_URL="$$VITE_SUPABASE_URL" \
+        --build-arg VITE_SUPABASE_ANON_KEY="$$VITE_SUPABASE_ANON_KEY" \
+        -t gcr.io/$PROJECT_ID/aman-cement-crm .
+    secretEnv: ['AMANEDGE_SECRET']
   
   # Push the container image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
@@ -40,3 +43,8 @@ images:
 options:
   machineType: 'N1_HIGHCPU_8'
   logging: CLOUD_LOGGING_ONLY
+
+availableSecrets:
+  secretManager:
+  - versionName: projects/449789808435/secrets/amanedge_secret/versions/latest
+    env: 'AMANEDGE_SECRET'
