@@ -113,7 +113,10 @@ export interface GPSValidationResult {
 }
 
 export interface ProjectCustomerData extends CustomerFormData {
-  // Extended fields for project specific logic if needed
+  built_up_area_sqft: number;
+  construction_stage_percent: number;
+  cement_requirement_tons: number;
+  cement_consumed_tons: number;
 }
 
 
