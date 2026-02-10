@@ -4,11 +4,31 @@ steps:
   # using Secret Manager to get environment variables
   - name: 'gcr.io/cloud-builders/docker'
     entrypoint: 'bash'
+    entrypoint: 'bash'
     args:
     - '-c'
     - |
+      echo "🔓 Fetching secret..."
       echo "$$AMANEDGE_SECRET" > .env
+      
+      echo "📄 content check (first 10 chars):"
+      cat .env | head -c 10
+      echo "..."
+      
+      # Export variables from .env
+      set -o allexport
       source .env
+      set +o allexport
+      
+      echo "🔍 Verifying variables..."
+      if [ -z "$$VITE_SUPABASE_URL" ]; then
+        echo "❌ ERROR: VITE_SUPABASE_URL is empty! Check secret format in Google Cloud."
+        echo "The secret must be KEY=VALUE format, NOT JSON."
+        exit 1
+      else
+        echo "✅ VITE_SUPABASE_URL found (starts with $${VITE_SUPABASE_URL:0:10}...)"
+      fi
+      
       docker build --no-cache \
         --build-arg VITE_SUPABASE_URL="$$VITE_SUPABASE_URL" \
         --build-arg VITE_SUPABASE_ANON_KEY="$$VITE_SUPABASE_ANON_KEY" \
