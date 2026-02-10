@@ -21,7 +21,7 @@ export function MapContainer() {
   const { setMap } = useMapStore();
 
   const { isLoaded, loadError } = useJsApiLoader({
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
+    googleMapsApiKey: window.env?.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
     libraries: ['visualization', 'geometry'],
   });
 
