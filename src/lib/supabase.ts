@@ -5,10 +5,12 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Supabase configuration - Replace with your actual credentials
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Priority: Runtime (window.env) > Build Time (import.meta.env)
+const supabaseUrl = window.env?.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = window.env?.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 console.log('🔌 Supabase Config:', {
+  source: window.env?.VITE_SUPABASE_URL ? 'RUNTIME (window.env)' : 'BUILD TIME (import.meta.env)',
   url: supabaseUrl ? (supabaseUrl.substring(0, 10) + '...') : 'MISSING',
   keyPresent: !!supabaseAnonKey
 });

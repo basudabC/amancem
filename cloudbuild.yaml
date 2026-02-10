@@ -4,7 +4,6 @@ steps:
   # using Secret Manager to get environment variables
   - name: 'gcr.io/cloud-builders/docker'
     entrypoint: 'bash'
-    entrypoint: 'bash'
     args:
     - '-c'
     - |

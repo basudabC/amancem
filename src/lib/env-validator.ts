@@ -22,8 +22,8 @@ export function validateEnv(): EnvConfig {
 
     // Check for missing required variables
     for (const varName of requiredEnvVars) {
-        // Use import.meta.env directly
-        const value = import.meta.env[varName];
+        // Use window.env (runtime) or import.meta.env (build time)
+        const value = window.env?.[varName] || import.meta.env[varName];
         if (!value || value === '' || value.includes('your-')) {
             missing.push(varName);
         }

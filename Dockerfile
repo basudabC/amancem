@@ -29,11 +29,15 @@ FROM nginx:alpine
 # Copy built assets from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy nginx config
+# Copy Nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Expose port (Cloud Run defaults to 8080)
+# Copy env.sh for runtime variable injection
+COPY env.sh /docker-entrypoint.d/env.sh
+RUN chmod +x /docker-entrypoint.d/env.sh
+
+# Expose port (Cloud Run uses 8080 by default)
 EXPOSE 8080
 
-# Start Nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Start Nginx (execute env.sh first manually if not using docker-entrypoint logic, but simpler to just run it in CMD)
+CMD ["/bin/sh", "-c", "/docker-entrypoint.d/env.sh && nginx -g 'daemon off;'"]
