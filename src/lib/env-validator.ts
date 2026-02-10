@@ -37,12 +37,12 @@ export function validateEnv(): EnvConfig {
     }
 
     return {
-        VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
-        VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY,
-        VITE_GOOGLE_MAPS_API_KEY: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-        VITE_APP_NAME: import.meta.env.VITE_APP_NAME || 'Aman Cement CRM',
-        VITE_APP_VERSION: import.meta.env.VITE_APP_VERSION || '1.0.0',
-        VITE_NODE_ENV: import.meta.env.VITE_NODE_ENV || 'development',
+        VITE_SUPABASE_URL: window.env?.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL,
+        VITE_SUPABASE_ANON_KEY: window.env?.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY,
+        VITE_GOOGLE_MAPS_API_KEY: window.env?.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+        VITE_APP_NAME: window.env?.VITE_APP_NAME || import.meta.env.VITE_APP_NAME || 'Aman Cement CRM',
+        VITE_APP_VERSION: window.env?.VITE_APP_VERSION || import.meta.env.VITE_APP_VERSION || '1.0.0',
+        VITE_NODE_ENV: window.env?.VITE_NODE_ENV || import.meta.env.VITE_NODE_ENV || 'development',
     };
 }
 
