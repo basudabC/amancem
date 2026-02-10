@@ -6,7 +6,23 @@ import { inspectAttr } from 'kimi-plugin-inspect-react'
 // https://vite.dev/config/
 export default defineConfig({
   base: './',
-  plugins: [inspectAttr(), react()],
+  define: {
+    'process.env.VITE_SUPABASE_URL': JSON.stringify(process.env.VITE_SUPABASE_URL),
+    'process.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(process.env.VITE_SUPABASE_ANON_KEY),
+  },
+  plugins: [
+    inspectAttr(),
+    react(),
+    {
+      name: 'env-logger',
+      config() {
+        console.log('🏗️  Build Env Check:', {
+          VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL ? '✅ Present' : '❌ Missing',
+          VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY ? '✅ Present' : '❌ Missing',
+        });
+      }
+    }
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
