@@ -127,7 +127,6 @@ export function DashboardRep() {
           progress={dailyTarget > 0 ? (todaySales.total_value / dailyTarget) * 100 : 0}
         />
 
-        {/* Monthly Sales vs Target */}
         <StatCard
           icon={<Target className="w-5 h-5" />}
           label="Monthly Sales"
@@ -135,6 +134,15 @@ export function DashboardRep() {
           subtext={`Target: ৳${monthlyTarget.toLocaleString()}`}
           color={monthlySales.total_value >= monthlyTarget ? "#2ECC71" : "#3A9EFF"}
           progress={monthlyTarget > 0 ? (monthlySales.total_value / monthlyTarget) * 100 : 0}
+        />
+
+        {/* Monthly Credit (NEW) */}
+        <StatCard
+          icon={<DollarSign className="w-5 h-5" />}
+          label="Monthly Credit"
+          value={`৳${monthlySales.total_credit.toLocaleString()}`}
+          subtext="Outstanding credit this month"
+          color="#FF7C3A"
         />
 
         <StatCard

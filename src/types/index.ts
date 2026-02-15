@@ -23,6 +23,7 @@ export interface CustomerFormData {
   lat?: number;
   lng?: number;
   pipeline: PipelineType;
+  customer_type?: 'Retailer' | 'Dealer' | string; // NEW
   shop_name?: string;
   monthly_sales_advance?: number;
   monthly_sales_advance_plus?: number;
@@ -152,6 +153,7 @@ export interface Customer {
 
   // Pipeline classification
   pipeline: PipelineType;
+  customer_type?: 'Retailer' | 'Dealer' | string; // NEW
   status: CustomerStatus;
 
   // Owner information (NEW)
@@ -329,4 +331,20 @@ export interface ConversionFormData {
   construction_stage_update?: number;
   cement_consumed_update?: number;
   sale_notes?: string;
+
+  // Sales Party (NEW)
+  sales_first_party?: string;
+  sales_second_party?: string;
+  first_party_id?: string;
+  second_party_id?: string;
+
+  // Multiple Products Support (NEW)
+  products?: ProductItem[];
+}
+
+export interface ProductItem {
+  product: AmanProduct;
+  quantity: number;
+  unit_price: number;
+  total: number;
 }

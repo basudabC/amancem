@@ -17,6 +17,8 @@ export interface Conversion {
     product_type: string;
     source_visit_id?: string;
     notes?: string;
+    cash_amount: number;
+    credit_amount: number;
 
     // Joined data
     customer_name?: string;
@@ -28,6 +30,8 @@ export interface SalesSummary {
     total_value: number;
     total_volume: number;
     total_count: number;
+    total_credit: number;
+    total_cash: number;
     by_product: Record<string, { value: number; volume: number; count: number }>;
 }
 
@@ -54,7 +58,7 @@ export function useConversions(options: UseConversionsOptions = {}) {
                 .from('conversions')
                 .select(`
           *,
-          customers!inner(name, pipeline),
+          customers!conversions_customer_id_fkey!inner(name, pipeline),
           profiles!conversions_converted_by_fkey(full_name)
         `)
                 .order('converted_at', { ascending: false });
@@ -101,7 +105,10 @@ export function useConversions(options: UseConversionsOptions = {}) {
                 customer_id: item.customer_id,
                 converted_by: item.converted_by,
                 converted_at: item.converted_at,
+                // Per user request: use database column total_value (which is now auto-calculated)
                 order_value: item.total_value || 0,
+                cash_amount: item.cash_amount || 0,
+                credit_amount: item.credit_amount || 0,
                 order_volume: item.quantity_bags || 0,
                 product_type: item.product,
                 source_visit_id: item.visit_id || item.source_visit_id,
@@ -131,6 +138,8 @@ export function useSalesSummary(options: UseConversionsOptions = {}) {
         total_value: 0,
         total_volume: 0,
         total_count: 0,
+        total_credit: 0,
+        total_cash: 0,
         by_product: {},
     };
 
@@ -205,6 +214,8 @@ export function useCustomerRecentSales(customerId: string) {
         total_value: 0,
         total_volume: 0,
         total_count: 0,
+        total_credit: 0,
+        total_cash: 0,
         by_product: {},
     };
 

@@ -4,6 +4,7 @@
 // ============================================================
 
 import { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/button';
@@ -26,8 +27,8 @@ import {
 } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Package, CreditCard, Truck, Calculator, AlertCircle } from 'lucide-react';
-import type { Customer, ConversionFormData, PaymentType, AmanProduct } from '@/types';
+import { Package, CreditCard, Truck, Calculator, AlertCircle, User, Plus, Trash2 } from 'lucide-react';
+import type { Customer, ConversionFormData, PaymentType, AmanProduct, ProductItem } from '@/types';
 
 interface ConversionFormProps {
     open: boolean;
@@ -47,24 +48,25 @@ const AMAN_PRODUCTS: AmanProduct[] = [
 
 export function ConversionForm({ open, onOpenChange, customer, visitId, onSuccess }: ConversionFormProps) {
     const { user } = useAuthStore();
+    const queryClient = useQueryClient();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formData, setFormData] = useState<Partial<ConversionFormData>>({
         customer_id: customer.id,
         visit_id: visitId,
         payment_type: 'cash',
+        products: [{ product: 'AmanCem Advance', quantity: 1, unit_price: 0, total: 0 }], // Initialize with one row
+        sales_first_party: '', // Initialize to avoid uncontrolled input warning
+        sales_second_party: '', // Initialize to avoid uncontrolled input warning
     });
     const [totalValue, setTotalValue] = useState(0);
     const [paymentError, setPaymentError] = useState<string | null>(null);
 
     // Auto-calculate total value
     useEffect(() => {
-        if (formData.quantity_bags && formData.unit_price) {
-            const total = formData.quantity_bags * formData.unit_price;
-            setTotalValue(total);
-        } else {
-            setTotalValue(0);
-        }
-    }, [formData.quantity_bags, formData.unit_price]);
+        const products = formData.products || [];
+        const total = products.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+        setTotalValue(total);
+    }, [formData.products]);
 
     // Validate payment
     useEffect(() => {
@@ -97,6 +99,36 @@ export function ConversionForm({ open, onOpenChange, customer, visitId, onSucces
         }
     }, [formData.payment_type, formData.cash_amount, formData.credit_amount, totalValue]);
 
+    const addProductRow = () => {
+        setFormData(prev => ({
+            ...prev,
+            products: [...(prev.products || []), { product: 'AmanCem Advance', quantity: 1, unit_price: 0, total: 0 }]
+        }));
+    };
+
+    const removeProductRow = (index: number) => {
+        setFormData(prev => ({
+            ...prev,
+            products: (prev.products || []).filter((_, i) => i !== index)
+        }));
+    };
+
+    const updateProductRow = (index: number, field: keyof ProductItem, value: any) => {
+        setFormData(prev => {
+            const newProducts = [...(prev.products || [])];
+            newProducts[index] = { ...newProducts[index], [field]: value };
+
+            // Recalculate row total
+            if (field === 'quantity' || field === 'unit_price') {
+                const qty = field === 'quantity' ? value : newProducts[index].quantity;
+                const price = field === 'unit_price' ? value : newProducts[index].unit_price;
+                newProducts[index].total = qty * price;
+            }
+
+            return { ...prev, products: newProducts };
+        });
+    };
+
     // Auto-fill delivery address from customer
     useEffect(() => {
         if (open && customer) {
@@ -105,6 +137,49 @@ export function ConversionForm({ open, onOpenChange, customer, visitId, onSucces
                 delivery_address: customer.address,
                 delivery_lat: customer.lat,
                 delivery_lng: customer.lng,
+            }));
+        }
+    }, [open, customer]);
+
+    // Fetch customers for Sales Party dropdowns
+    const { data: recurringCustomers = [] } = useQuery({
+        queryKey: ['recurring-customers'],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('customers')
+                .select('id, name, shop_name, customer_type')
+                .eq('pipeline', 'recurring')
+                .eq('status', 'active'); // Only active customers
+            return data || [];
+        },
+        enabled: open, // Only fetch when form is open
+    });
+
+    const dealers = recurringCustomers.filter((c: any) => c.customer_type === 'Dealer');
+    const retailers = recurringCustomers.filter((c: any) => c.customer_type === 'Retailer');
+
+    // Auto-select Sales Party defaults
+    useEffect(() => {
+        if (open && customer) {
+            let firstParty = '';
+            let secondParty = '';
+            let firstPartyId = '';
+            let secondPartyId = '';
+
+            if (customer.customer_type === 'Dealer') {
+                firstParty = customer.shop_name || customer.name;
+                firstPartyId = customer.id;
+            } else if (customer.customer_type === 'Retailer') {
+                secondParty = customer.shop_name || customer.name;
+                secondPartyId = customer.id;
+            }
+
+            setFormData(prev => ({
+                ...prev,
+                sales_first_party: firstParty,
+                sales_second_party: secondParty,
+                first_party_id: firstPartyId,
+                second_party_id: secondPartyId,
             }));
         }
     }, [open, customer]);
@@ -126,10 +201,17 @@ export function ConversionForm({ open, onOpenChange, customer, visitId, onSucces
                 visit_id: visitId,
 
                 // Product details
-                product: formData.product,
-                quantity_bags: formData.quantity_bags,
-                unit_price: formData.unit_price,
-                // total_value will be auto-calculated by trigger
+                products: formData.products, // Save as JSONB
+                order_value: totalValue, // Save total value
+
+                // Aggregate for legacy/summary
+                product: formData.products?.[0]?.product || 'Multiple',
+                quantity_bags: formData.products?.reduce((sum, p) => sum + p.quantity, 0) || 0,
+                unit_price: 0, // Not applicable for multiple products
+
+                // total_value will be auto-calculated by trigger but we override or it matches?
+                // We should probably explicitly set it if the column exists and is not generated always.
+                // Based on schema, order_value is DECIMAL. Assuming that's it.
 
                 // Payment details
                 payment_type: formData.payment_type,
@@ -149,6 +231,12 @@ export function ConversionForm({ open, onOpenChange, customer, visitId, onSucces
                 cement_consumed_update: formData.cement_consumed_update,
 
                 sale_notes: formData.sale_notes,
+
+                // Add missing Sales Party IDs
+                sales_first_party: formData.sales_first_party,
+                sales_second_party: formData.sales_second_party,
+                first_party_id: formData.first_party_id || null,
+                second_party_id: formData.second_party_id || null,
             };
 
             const { error } = await supabase.from('conversions').insert([conversionData]);
@@ -162,6 +250,11 @@ export function ConversionForm({ open, onOpenChange, customer, visitId, onSucces
                 .eq('id', customer.id);
 
             toast.success('Sale recorded successfully!');
+
+            // Invalidate queries to refresh dashboard and lists
+            queryClient.invalidateQueries({ queryKey: ['conversions'] });
+            queryClient.invalidateQueries({ queryKey: ['customers'] });
+
             onOpenChange(false);
             onSuccess?.();
 
@@ -169,6 +262,11 @@ export function ConversionForm({ open, onOpenChange, customer, visitId, onSucces
             setFormData({
                 customer_id: customer.id,
                 payment_type: 'cash',
+                products: [{ product: 'AmanCem Advance', quantity: 1, unit_price: 0, total: 0 }],
+                sales_first_party: '',
+                sales_second_party: '',
+                first_party_id: '',
+                second_party_id: '',
             });
         } catch (error: any) {
             console.error('Error recording sale:', error);
@@ -189,6 +287,79 @@ export function ConversionForm({ open, onOpenChange, customer, visitId, onSucces
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
+                    {/* Sales Party (NEW) */}
+                    <Card className="bg-[#0A2A5C] border-white/10">
+                        <CardHeader>
+                            <CardTitle className="text-[#F0F4F8] flex items-center gap-2">
+                                <User className="w-5 h-5" />
+                                Sales Party
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <Label className="text-[#F0F4F8]">First Party (Dealer)</Label>
+                                    <Select
+                                        value={formData.first_party_id || ''}
+                                        onValueChange={(v) => {
+                                            const selectedDealer = dealers.find((d: any) => d.id === v);
+                                            setFormData({
+                                                ...formData,
+                                                first_party_id: v,
+                                                sales_first_party: selectedDealer?.shop_name || selectedDealer?.name || ''
+                                            });
+                                        }}
+                                    >
+                                        <SelectTrigger className="bg-[#061A3A] border-white/10 text-[#F0F4F8]">
+                                            <SelectValue placeholder="Select Dealer" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8] max-h-[200px]">
+                                            {dealers.map((dealer: any) => (
+                                                <SelectItem key={dealer.id} value={dealer.id}>
+                                                    {dealer.shop_name || dealer.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label className="text-[#F0F4F8]">Second Party (Retailer)</Label>
+                                    <Select
+                                        value={formData.second_party_id || (formData.sales_second_party === 'Own House' ? 'own_house' : '')}
+                                        onValueChange={(v) => {
+                                            if (v === 'own_house') {
+                                                setFormData({
+                                                    ...formData,
+                                                    second_party_id: undefined,
+                                                    sales_second_party: 'Own House'
+                                                });
+                                            } else {
+                                                const selectedRetailer = retailers.find((r: any) => r.id === v);
+                                                setFormData({
+                                                    ...formData,
+                                                    second_party_id: v,
+                                                    sales_second_party: selectedRetailer?.shop_name || selectedRetailer?.name || ''
+                                                });
+                                            }
+                                        }}
+                                    >
+                                        <SelectTrigger className="bg-[#061A3A] border-white/10 text-[#F0F4F8]">
+                                            <SelectValue placeholder="Select Retailer/Party" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8] max-h-[200px]">
+                                            <SelectItem value="own_house">Own House</SelectItem>
+                                            {retailers.map((retailer: any) => (
+                                                <SelectItem key={retailer.id} value={retailer.id}>
+                                                    {retailer.shop_name || retailer.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
                     {/* Product Details */}
                     <Card className="bg-[#0A2A5C] border-white/10">
                         <CardHeader>
@@ -198,50 +369,82 @@ export function ConversionForm({ open, onOpenChange, customer, visitId, onSucces
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="grid grid-cols-3 gap-4">
-                                <div>
-                                    <Label className="text-[#F0F4F8]">Product *</Label>
-                                    <Select
-                                        value={formData.product}
-                                        onValueChange={(v) => setFormData({ ...formData, product: v as AmanProduct })}
-                                    >
-                                        <SelectTrigger className="bg-[#061A3A] border-white/10 text-[#F0F4F8]">
-                                            <SelectValue placeholder="Select product" />
-                                        </SelectTrigger>
-                                        <SelectContent className="bg-[#0A2A5C] border-white/10">
-                                            {AMAN_PRODUCTS.map((product) => (
-                                                <SelectItem key={product} value={product}>
-                                                    {product}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div>
-                                    <Label className="text-[#F0F4F8]">Quantity (bags) *</Label>
-                                    <Input
-                                        required
-                                        type="number"
-                                        min="1"
-                                        value={formData.quantity_bags || ''}
-                                        onChange={(e) => setFormData({ ...formData, quantity_bags: parseInt(e.target.value) })}
-                                        className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
-                                        placeholder="25"
-                                    />
-                                </div>
-                                <div>
-                                    <Label className="text-[#F0F4F8]">Unit Price (Tk) *</Label>
-                                    <Input
-                                        required
-                                        type="number"
-                                        step="0.01"
-                                        value={formData.unit_price || ''}
-                                        onChange={(e) => setFormData({ ...formData, unit_price: parseFloat(e.target.value) })}
-                                        className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
-                                        placeholder="520"
-                                    />
-                                </div>
+                            <div className="space-y-4">
+                                {formData.products?.map((item, index) => (
+                                    <div key={index} className="grid grid-cols-12 gap-2 items-end border-b border-white/10 pb-4 last:border-0">
+                                        <div className="col-span-5">
+                                            <Label className="text-[#F0F4F8] text-xs">Product *</Label>
+                                            <Select
+                                                value={item.product}
+                                                onValueChange={(v) => updateProductRow(index, 'product', v as AmanProduct)}
+                                            >
+                                                <SelectTrigger className="bg-[#061A3A] border-white/10 text-[#F0F4F8]">
+                                                    <SelectValue placeholder="Select product" />
+                                                </SelectTrigger>
+                                                <SelectContent className="bg-[#0A2A5C] border-white/10">
+                                                    {AMAN_PRODUCTS.map((product) => (
+                                                        <SelectItem key={product} value={product}>
+                                                            {product}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <Label className="text-[#F0F4F8] text-xs">Qty (bags)</Label>
+                                            <Input
+                                                required
+                                                type="number"
+                                                min="1"
+                                                value={item.quantity}
+                                                onChange={(e) => updateProductRow(index, 'quantity', parseInt(e.target.value) || 0)}
+                                                className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
+                                            />
+                                        </div>
+                                        <div className="col-span-2">
+                                            <Label className="text-[#F0F4F8] text-xs">Price (Tk)</Label>
+                                            <Input
+                                                required
+                                                type="number"
+                                                step="0.01"
+                                                value={item.unit_price}
+                                                onChange={(e) => updateProductRow(index, 'unit_price', parseFloat(e.target.value) || 0)}
+                                                className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
+                                            />
+                                        </div>
+                                        <div className="col-span-2">
+                                            <Label className="text-[#F0F4F8] text-xs">Subtotal</Label>
+                                            <div className="h-10 flex items-center px-3 text-[#F0F4F8] bg-[#0A2A5C]/50 rounded-md border border-white/5">
+                                                {(item.quantity * item.unit_price).toFixed(0)}
+                                            </div>
+                                        </div>
+                                        <div className="col-span-1 flex justify-center pb-2">
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => removeProductRow(index)}
+                                                className="text-red-400 hover:text-red-300 hover:bg-red-400/10"
+                                                disabled={formData.products?.length === 1}
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
+
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={addProductRow}
+                                className="w-full border-dashed border-white/20 text-[#8B9CB8] hover:text-[#F0F4F8] hover:bg-white/5"
+                            >
+                                <Plus className="w-4 h-4 mr-2" />
+                                Add Another Product
+                            </Button>
+
 
                             {totalValue > 0 && (
                                 <div className="p-4 bg-[#2ECC71]/10 border border-[#2ECC71]/30 rounded-lg">
@@ -437,6 +640,6 @@ export function ConversionForm({ open, onOpenChange, customer, visitId, onSucces
                     </div>
                 </form>
             </DialogContent>
-        </Dialog>
+        </Dialog >
     );
 }

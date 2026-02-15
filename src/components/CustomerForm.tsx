@@ -171,6 +171,7 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                 current_brand: customer.current_brand,
                 notes: customer.notes,
                 tags: customer.tags || [],
+                customer_type: customer.customer_type, // Load customer type
             });
             setPipeline(customer.pipeline);
         } else if (!customer && open) {
@@ -305,6 +306,9 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                 customerData.credit_days = formData.credit_days;
                 customerData.promotions_offered = formData.promotions_offered;
 
+                // Add Customer Type for Recurring Shops
+                customerData.customer_type = formData.customer_type;
+
                 console.log('Saving recurring shop with monthly sales:', {
                     advance: customerData.monthly_sales_advance,
                     advance_plus: customerData.monthly_sales_advance_plus,
@@ -431,6 +435,23 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                                             placeholder={pipeline === 'recurring' ? 'Rahman Hardware' : 'Rahman Residence'}
                                         />
                                     </div>
+                                    {pipeline === 'recurring' && (
+                                        <div>
+                                            <Label className="text-[#F0F4F8]">Customer Type *</Label>
+                                            <Select
+                                                value={formData.customer_type || ''}
+                                                onValueChange={(v) => setFormData({ ...formData, customer_type: v })}
+                                            >
+                                                <SelectTrigger className="bg-[#061A3A] border-white/10 text-[#F0F4F8]">
+                                                    <SelectValue placeholder="Select Type" />
+                                                </SelectTrigger>
+                                                <SelectContent className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8]">
+                                                    <SelectItem value="Retailer">Retailer</SelectItem>
+                                                    <SelectItem value="Dealer">Dealer</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    )}
                                     <div>
                                         <Label className="text-[#F0F4F8]">Owner Name *</Label>
                                         <Input
@@ -635,7 +656,7 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                     </form>
                 </Tabs>
             </DialogContent>
-        </Dialog>
+        </Dialog >
     );
 }
 
