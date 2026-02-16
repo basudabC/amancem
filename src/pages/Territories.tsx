@@ -3,7 +3,7 @@
 // Territory management with GeoJSON boundaries
 // ============================================================
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
@@ -145,9 +145,9 @@ function TerritoryModal({
     setFormData({ ...formData, region: regionName, area: '' }); // Reset area on region change
   };
 
-  useState(() => {
+  useEffect(() => {
     if (territory) {
-      if (territory.region) {
+      if (territory.region && regions.length > 0) {
         // Try to find the division for this region to pre-select it
         const regionObj = regions.find((r: any) => r.name === territory.region);
         if (regionObj) {
@@ -171,7 +171,7 @@ function TerritoryModal({
       setFormData(initialFormData);
       setSelectedDivisionId('');
     }
-  });
+  }, [territory, regions]);
 
   const validateGeoJSON = (json: string): boolean => {
     if (!json || json.trim() === '') {
@@ -202,12 +202,18 @@ function TerritoryModal({
         throw new Error('Invalid GeoJSON');
       }
 
+      // Find IDs based on names
+      const regionObj = regions.find((r: any) => r.name === data.region);
+      const areaObj = areas.find((a: any) => a.name === data.area);
+
       const territoryData = {
         name: data.name,
         code: data.code,
         color: data.color,
         region: data.region,
+        region_id: regionObj?.id || null, // Save ID
         area: data.area,
+        area_id: areaObj?.id || null,     // Save ID
         supervisor_id: data.supervisor_id || null,
         center_lat: data.center_lat,
         center_lng: data.center_lng,

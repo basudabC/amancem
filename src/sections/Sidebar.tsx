@@ -32,18 +32,18 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { path: '/', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'country_head'] },
-  { path: '/map', label: 'Territory Map', icon: <Map className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'country_head'] },
-  { path: '/customers', label: 'Customers', icon: <Store className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'country_head'] },
-  { path: '/sales', label: 'Sales', icon: <DollarSign className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'country_head'] },
-  { path: '/projects', label: 'Projects', icon: <Building2 className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'country_head'] },
+  { path: '/', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'division_head', 'country_head'] },
+  { path: '/map', label: 'Territory Map', icon: <Map className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'division_head', 'country_head'] },
+  { path: '/customers', label: 'Customers', icon: <Store className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'division_head', 'country_head'] },
+  { path: '/sales', label: 'Sales', icon: <DollarSign className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'division_head', 'country_head'] },
+  { path: '/projects', label: 'Projects', icon: <Building2 className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'division_head', 'country_head'] },
   { path: '/routes', label: 'My Routes', icon: <Route className="w-5 h-5" />, roles: ['sales_rep'] },
-  { path: '/visits', label: 'Visits', icon: <CalendarCheck className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'country_head'] },
-  { path: '/team', label: 'Team', icon: <Users className="w-5 h-5" />, roles: ['supervisor', 'area_manager', 'regional_manager', 'country_head'] },
-  { path: '/analytics', label: 'Analytics', icon: <TrendingUp className="w-5 h-5" />, roles: ['supervisor', 'area_manager', 'regional_manager', 'country_head'] },
-  { path: '/territories', label: 'Territories', icon: <Shield className="w-5 h-5" />, roles: ['supervisor', 'area_manager', 'regional_manager', 'country_head'] },
-  { path: '/admin', label: 'Admin', icon: <UserCog className="w-5 h-5" />, roles: ['country_head'] },
-  { path: '/settings', label: 'Settings', icon: <Settings className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'country_head'] },
+  { path: '/visits', label: 'Visits', icon: <CalendarCheck className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'division_head', 'country_head'] },
+  { path: '/team', label: 'Team', icon: <Users className="w-5 h-5" />, roles: ['supervisor', 'area_manager', 'regional_manager', 'division_head', 'country_head'] },
+  { path: '/analytics', label: 'Analytics', icon: <TrendingUp className="w-5 h-5" />, roles: ['supervisor', 'area_manager', 'regional_manager', 'division_head', 'country_head'] },
+  { path: '/territories', label: 'Territories', icon: <Shield className="w-5 h-5" />, roles: ['supervisor', 'area_manager', 'regional_manager', 'division_head', 'country_head'] },
+  { path: '/admin', label: 'Admin', icon: <UserCog className="w-5 h-5" />, roles: ['country_head'] }, // Admin is likely only for country_head or explicit admins
+  { path: '/settings', label: 'Settings', icon: <Settings className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'division_head', 'country_head'] },
 ];
 
 export function Sidebar() {
