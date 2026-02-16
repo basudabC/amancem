@@ -4,7 +4,7 @@
 // ============================================================
 
 // User Roles
-export type UserRole = 'sales_rep' | 'supervisor' | 'area_manager' | 'regional_manager' | 'country_head';
+export type UserRole = 'sales_rep' | 'supervisor' | 'area_manager' | 'regional_manager' | 'division_head' | 'country_head';
 
 // User (maps to profiles table)
 // ... existing types

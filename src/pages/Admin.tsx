@@ -198,11 +198,13 @@ function generateEmployeeCode(role: string): string {
     'supervisor': 'SUP',
     'area_manager': 'AM',
     'regional_manager': 'RM',
+    'division_head': 'DH',
     'country_head': 'CH'
   }[role] || 'EMP';
 
-  const timestamp = Date.now().toString().slice(-6);
-  return `${rolePrefix}${timestamp}`;
+  const timestamp = Date.now().toString().slice(-4);
+  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return `${rolePrefix}${timestamp}${random}`;
 }
 
 // Users Management Section
@@ -224,6 +226,7 @@ function UsersManagement() {
     region_id: '',
     area_id: '',
     territory_id: '',
+    division_id: '',
   });
 
   const { data: users = [], isLoading, refetch } = useQuery({
@@ -288,12 +291,14 @@ function UsersManagement() {
   const getValidManagerRoles = (userRole: string): string[] => {
     switch (userRole) {
       case 'sales_rep':
-        return ['supervisor', 'area_manager', 'regional_manager', 'country_head'];
+        return ['supervisor', 'area_manager', 'regional_manager', 'division_head', 'country_head'];
       case 'supervisor':
-        return ['area_manager', 'regional_manager', 'country_head'];
+        return ['area_manager', 'regional_manager', 'division_head', 'country_head'];
       case 'area_manager':
-        return ['regional_manager', 'country_head'];
+        return ['regional_manager', 'division_head', 'country_head'];
       case 'regional_manager':
+        return ['division_head', 'country_head'];
+      case 'division_head':
         return ['country_head'];
       case 'country_head':
         return []; // Country head doesn't report to anyone
@@ -323,6 +328,14 @@ function UsersManagement() {
   });
 
   // --- Hierarchy Data Fetching for Admin ---
+  const { data: divisions = [] } = useQuery({
+    queryKey: ['divisions'],
+    queryFn: async () => {
+      const { data } = await supabase.from('divisions').select('*').order('name');
+      return data || [];
+    },
+  });
+
   const { data: regions = [] } = useQuery({
     queryKey: ['regions'],
     queryFn: async () => {
@@ -348,6 +361,11 @@ function UsersManagement() {
   });
 
   // Filtered lists for dropdowns
+  const filteredRegions = useMemo(() => {
+    if (!newUser.division_id) return [];
+    return regions.filter((r: any) => r.division_id === newUser.division_id);
+  }, [regions, newUser.division_id]);
+
   const filteredAreas = useMemo(() => {
     if (!newUser.region_id) return [];
     return areas.filter((a: any) => a.region_id === newUser.region_id);
@@ -455,6 +473,17 @@ function UsersManagement() {
       // Auto-generate employee code if not provided
       const employeeCode = userData.employee_code || generateEmployeeCode(userData.role);
 
+      // Check if employee code or email already exists in profiles
+      const { data: existingUser } = await supabase
+        .from('profiles')
+        .select('id')
+        .or(`email.eq.${userData.email},employee_code.eq.${employeeCode}`)
+        .maybeSingle();
+
+      if (existingUser) {
+        throw new Error('A user with this email or employee code already exists.');
+      }
+
       // Create auth user with admin client
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: userData.email,
@@ -463,6 +492,7 @@ function UsersManagement() {
         user_metadata: {
           full_name: userData.full_name,
           employee_code: employeeCode,
+          role: userData.role,
         }
       });
 
@@ -473,6 +503,8 @@ function UsersManagement() {
       if (!authData.user) throw new Error('Failed to create user');
 
       // Upsert profile with role and additional info (create if doesn't exist, update if it does)
+      const divisionName = divisions.find((d: any) => d.id === userData.division_id)?.name;
+
       const { error: profileError } = await supabase
         .from('profiles')
         .upsert({
@@ -486,6 +518,7 @@ function UsersManagement() {
           region_id: userData.region_id || null,
           area_id: userData.area_id || null,
           territory_id: userData.territory_id || null,
+          division: divisionName || null,
           is_active: true,
         }, {
           onConflict: 'id'
@@ -513,6 +546,7 @@ function UsersManagement() {
         region_id: '',
         area_id: '',
         territory_id: '',
+        division_id: '',
       });
     },
     onError: (error: any) => {
@@ -529,6 +563,7 @@ function UsersManagement() {
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'country_head': return 'bg-[#C41E3A]/20 text-[#C41E3A]';
+      case 'division_head': return 'bg-[#F97316]/20 text-[#F97316]';
       case 'regional_manager': return 'bg-[#2DD4BF]/20 text-[#2DD4BF]';
       case 'area_manager': return 'bg-[#9B6BFF]/20 text-[#9B6BFF]';
       case 'supervisor': return 'bg-[#D4A843]/20 text-[#D4A843]';
@@ -719,6 +754,7 @@ function UsersManagement() {
                   <option value="supervisor">Supervisor</option>
                   <option value="area_manager">Area Manager</option>
                   <option value="regional_manager">Regional Manager</option>
+                  <option value="division_head">Division Head</option>
                   <option value="country_head">Country Head</option>
                 </select>
               </div>
@@ -728,20 +764,38 @@ function UsersManagement() {
                 <div className="space-y-4 border-t border-white/10 pt-4">
                   <h3 className="text-sm font-medium text-[#F0F4F8]">Territory & Location</h3>
 
-                  {/* Region Selection (All roles except CH) */}
+                  {/* Division Selection */}
                   <div className="space-y-2">
-                    <label className="text-sm text-[#8B9CB8]">Region</label>
+                    <label className="text-sm text-[#8B9CB8]">Division</label>
                     <select
-                      value={newUser.region_id}
-                      onChange={(e) => setNewUser({ ...newUser, region_id: e.target.value, area_id: '', territory_id: '' })}
+                      value={newUser.division_id}
+                      onChange={(e) => setNewUser({ ...newUser, division_id: e.target.value, region_id: '', area_id: '', territory_id: '' })}
                       className="w-full px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] focus:border-[#3A9EFF] outline-none"
                     >
-                      <option value="">Select Region...</option>
-                      {regions.map((r: any) => (
-                        <option key={r.id} value={r.id}>{r.name}</option>
+                      <option value="">Select Division...</option>
+                      {divisions.map((d: any) => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
                       ))}
                     </select>
                   </div>
+
+                  {/* Region Selection (All roles except CH and Division Head) */}
+                  {['sales_rep', 'supervisor', 'area_manager', 'regional_manager'].includes(newUser.role) && (
+                    <div className="space-y-2">
+                      <label className="text-sm text-[#8B9CB8]">Region</label>
+                      <select
+                        value={newUser.region_id}
+                        onChange={(e) => setNewUser({ ...newUser, region_id: e.target.value, area_id: '', territory_id: '' })}
+                        disabled={!newUser.division_id}
+                        className="w-full px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] focus:border-[#3A9EFF] outline-none disabled:opacity-50"
+                      >
+                        <option value="">Select Region...</option>
+                        {filteredRegions.map((r: any) => (
+                          <option key={r.id} value={r.id}>{r.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   {/* Area Selection (AM, Supervisor, Sales Rep) */}
                   {['area_manager', 'supervisor', 'sales_rep'].includes(newUser.role) && (
@@ -923,6 +977,7 @@ function UsersManagement() {
                     <option value="supervisor">Supervisor</option>
                     <option value="area_manager">Area Manager</option>
                     <option value="regional_manager">Regional Manager</option>
+                    <option value="division_head">Division Head</option>
                     <option value="country_head">Country Head</option>
                   </select>
                 </div>

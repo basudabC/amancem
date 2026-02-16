@@ -96,6 +96,15 @@ function TerritoryModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [geojsonError, setGeojsonError] = useState('');
 
+  /* Fetch Divisions */
+  const { data: divisions = [] } = useQuery({
+    queryKey: ['divisions'],
+    queryFn: async () => {
+      const { data } = await supabase.from('divisions').select('*').order('name');
+      return data || [];
+    },
+  });
+
   /* Fetch Regions */
   const { data: regions = [] } = useQuery({
     queryKey: ['regions'],
@@ -114,11 +123,23 @@ function TerritoryModal({
     },
   });
 
+  const [selectedDivisionId, setSelectedDivisionId] = useState<string>('');
+
+  const filteredRegions = useMemo(() => {
+    if (!selectedDivisionId) return [];
+    return regions.filter((r: any) => r.division_id === selectedDivisionId);
+  }, [regions, selectedDivisionId]);
+
   const filteredAreas = (() => {
     const selectedRegion = regions.find((r: any) => r.name === formData.region);
     if (!selectedRegion) return [];
     return areas.filter((a: any) => a.region_id === selectedRegion.id);
   })();
+
+  const handleDivisionChange = (divisionId: string) => {
+    setSelectedDivisionId(divisionId);
+    setFormData({ ...formData, region: '', area: '' }); // Reset child fields
+  };
 
   const handleRegionChange = (regionName: string) => {
     setFormData({ ...formData, region: regionName, area: '' }); // Reset area on region change
@@ -126,6 +147,13 @@ function TerritoryModal({
 
   useState(() => {
     if (territory) {
+      if (territory.region) {
+        // Try to find the division for this region to pre-select it
+        const regionObj = regions.find((r: any) => r.name === territory.region);
+        if (regionObj) {
+          setSelectedDivisionId(regionObj.division_id);
+        }
+      }
       setFormData({
         name: territory.name,
         code: territory.code,
@@ -141,10 +169,15 @@ function TerritoryModal({
       });
     } else {
       setFormData(initialFormData);
+      setSelectedDivisionId('');
     }
   });
 
   const validateGeoJSON = (json: string): boolean => {
+    if (!json || json.trim() === '') {
+      setGeojsonError('');
+      return true;
+    }
     try {
       const parsed = JSON.parse(json);
       if (parsed.type !== 'Polygon' && parsed.type !== 'MultiPolygon') {
@@ -165,7 +198,7 @@ function TerritoryModal({
 
   const saveTerritory = useMutation({
     mutationFn: async (data: TerritoryFormData) => {
-      if (!validateGeoJSON(data.geojson)) {
+      if (data.geojson && !validateGeoJSON(data.geojson)) {
         throw new Error('Invalid GeoJSON');
       }
 
@@ -180,7 +213,7 @@ function TerritoryModal({
         center_lng: data.center_lng,
         zoom_level: data.zoom_level,
         target_monthly: data.target_monthly,
-        geojson: JSON.parse(data.geojson),
+        geojson: data.geojson ? JSON.parse(data.geojson) : null,
       };
 
       if (territory) {
@@ -251,39 +284,59 @@ function TerritoryModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm text-[#8B9CB8]">Region *</label>
+              <label className="text-sm text-[#8B9CB8]">Division *</label>
               <Select
-                value={formData.region}
-                onValueChange={handleRegionChange}
+                value={selectedDivisionId}
+                onValueChange={handleDivisionChange}
               >
                 <SelectTrigger className="w-full px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8]">
-                  <SelectValue placeholder="Select Region" />
+                  <SelectValue placeholder="Select Division" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#0A2A5C] border-white/10">
-                  {regions.map((r: any) => (
-                    <SelectItem key={r.id} value={r.name} className="text-[#F0F4F8]">{r.name}</SelectItem>
+                  {divisions.map((d: any) => (
+                    <SelectItem key={d.id} value={d.id} className="text-[#F0F4F8]">{d.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm text-[#8B9CB8]">Area *</label>
-              <Select
-                value={formData.area}
-                onValueChange={(v) => setFormData({ ...formData, area: v })}
-                disabled={!formData.region}
-              >
-                <SelectTrigger className="w-full px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8]">
-                  <SelectValue placeholder="Select Area" />
-                </SelectTrigger>
-                <SelectContent className="bg-[#0A2A5C] border-white/10">
-                  {filteredAreas.map((a: any) => (
-                    <SelectItem key={a.id} value={a.name} className="text-[#F0F4F8]">{a.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm text-[#8B9CB8]">Region *</label>
+                <Select
+                  value={formData.region}
+                  onValueChange={handleRegionChange}
+                  disabled={!selectedDivisionId}
+                >
+                  <SelectTrigger className="w-full px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8]">
+                    <SelectValue placeholder="Select Region" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#0A2A5C] border-white/10">
+                    {filteredRegions.map((r: any) => (
+                      <SelectItem key={r.id} value={r.name} className="text-[#F0F4F8]">{r.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm text-[#8B9CB8]">Area *</label>
+                <Select
+                  value={formData.area}
+                  onValueChange={(v) => setFormData({ ...formData, area: v })}
+                  disabled={!formData.region}
+                >
+                  <SelectTrigger className="w-full px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8]">
+                    <SelectValue placeholder="Select Area" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#0A2A5C] border-white/10">
+                    {filteredAreas.map((a: any) => (
+                      <SelectItem key={a.id} value={a.name} className="text-[#F0F4F8]">{a.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
@@ -370,9 +423,8 @@ function TerritoryModal({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm text-[#8B9CB8]">GeoJSON Boundary *</label>
+            <label className="text-sm text-[#8B9CB8]">GeoJSON Boundary (Optional)</label>
             <textarea
-              required
               value={formData.geojson}
               onChange={(e) => {
                 setFormData({ ...formData, geojson: e.target.value });

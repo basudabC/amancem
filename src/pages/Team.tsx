@@ -43,6 +43,9 @@ interface TeamFormData {
   employee_code: string;
   territory_ids: string[];
   target_monthly: number;
+  division: string;
+  region: string;
+  area: string;
 }
 
 const initialFormData: TeamFormData = {
@@ -53,6 +56,9 @@ const initialFormData: TeamFormData = {
   employee_code: '',
   territory_ids: [],
   target_monthly: 0,
+  division: '',
+  region: '',
+  area: '',
 };
 
 const roles: { value: UserRole; label: string; color: string }[] = [
@@ -60,6 +66,7 @@ const roles: { value: UserRole; label: string; color: string }[] = [
   { value: 'supervisor', label: 'Supervisor', color: 'bg-[#D4A843]' },
   { value: 'area_manager', label: 'Area Manager', color: 'bg-[#9B6BFF]' },
   { value: 'regional_manager', label: 'Regional Manager', color: 'bg-[#2DD4BF]' },
+  { value: 'division_head', label: 'Division Head', color: 'bg-[#F97316]' }, // Orange
   { value: 'country_head', label: 'Country Head', color: 'bg-[#C41E3A]' },
 ];
 
@@ -80,6 +87,7 @@ function TeamMemberModal({
   // Determine which roles can be assigned based on current user's role
   const availableRoles = useMemo(() => {
     if (user?.role === 'country_head') return roles;
+    if (user?.role === 'division_head') return roles.filter(r => ['sales_rep', 'supervisor', 'area_manager', 'regional_manager'].includes(r.value));
     if (user?.role === 'regional_manager') return roles.filter(r => ['sales_rep', 'supervisor', 'area_manager'].includes(r.value));
     if (user?.role === 'area_manager') return roles.filter(r => ['sales_rep', 'supervisor'].includes(r.value));
     if (user?.role === 'supervisor') return roles.filter(r => r.value === 'sales_rep');
@@ -89,8 +97,60 @@ function TeamMemberModal({
   const [formData, setFormData] = useState<TeamFormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Fetch Hierarchy Data
+  const { data: divisions = [] } = useQuery({
+    queryKey: ['divisions'],
+    queryFn: async () => {
+      const { data } = await supabase.from('divisions').select('*').order('name');
+      return data || [];
+    },
+  });
+
+  const { data: regions = [] } = useQuery({
+    queryKey: ['regions'],
+    queryFn: async () => {
+      const { data } = await supabase.from('regions').select('*').order('name');
+      return data || [];
+    },
+  });
+
+  const { data: areas = [] } = useQuery({
+    queryKey: ['areas'],
+    queryFn: async () => {
+      const { data } = await supabase.from('areas').select('*').order('name');
+      return data || [];
+    },
+  });
+
+  const [selectedDivisionId, setSelectedDivisionId] = useState<string>('');
+
+  // Filtered Lists
+  const filteredRegions = useMemo(() => {
+    if (!selectedDivisionId) return [];
+    return regions.filter((r: any) => r.division_id === selectedDivisionId);
+  }, [regions, selectedDivisionId]);
+
+  const filteredAreas = useMemo(() => {
+    if (!formData.region) return [];
+    const regionObj = regions.find((r: any) => r.name === formData.region);
+    if (!regionObj) return [];
+    return areas.filter((a: any) => a.region_id === regionObj.id);
+  }, [areas, formData.region, regions]);
+
+
   useEffect(() => {
     if (member) {
+      // Find division id from member's division name or imply from region
+      let divId = '';
+      if (member.region) {
+        const regionObj = regions.find((r: any) => r.name === member.region);
+        if (regionObj) divId = regionObj.division_id;
+      }
+      // If member has explicit division (after our migration), use that if available
+      // For now relying on region implication is safer for old data, but new data will have it.
+
+      setSelectedDivisionId(divId);
+
       setFormData({
         full_name: member.full_name || '',
         email: member.email || '',
@@ -99,11 +159,15 @@ function TeamMemberModal({
         employee_code: member.employee_code || '',
         territory_ids: member.territory_ids || [],
         target_monthly: member.target_monthly || 0,
+        division: member.division || '',
+        region: member.region || '',
+        area: member.area || '',
       });
     } else {
       setFormData(initialFormData);
+      setSelectedDivisionId('');
     }
-  }, [member]);
+  }, [member, regions]);
 
   const saveMember = useMutation({
     mutationFn: async (data: TeamFormData) => {
@@ -116,6 +180,9 @@ function TeamMemberModal({
         territory_ids: data.territory_ids,
         target_monthly: data.target_monthly,
         reports_to: user?.id,
+        division: data.division,
+        region: data.region,
+        area: data.area,
       };
 
       if (member) {
@@ -244,6 +311,59 @@ function TeamMemberModal({
               ))}
             </select>
           </div>
+
+          {/* HIERARCHY FIELDS */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm text-[#8B9CB8]">Division</label>
+              <select
+                value={selectedDivisionId}
+                onChange={(e) => {
+                  const divId = e.target.value;
+                  const divName = divisions.find((d: any) => d.id === divId)?.name || '';
+                  setSelectedDivisionId(divId);
+                  setFormData({ ...formData, division: divName, region: '', area: '' });
+                }}
+                className="w-full px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] focus:border-[#3A9EFF] outline-none"
+              >
+                <option value="">Select Division</option>
+                {divisions.map((d: any) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm text-[#8B9CB8]">Region</label>
+              <select
+                value={formData.region}
+                disabled={!selectedDivisionId}
+                onChange={(e) => setFormData({ ...formData, region: e.target.value, area: '' })}
+                className="w-full px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] focus:border-[#3A9EFF] outline-none disabled:opacity-50"
+              >
+                <option value="">Select Region</option>
+                {filteredRegions.map((r: any) => (
+                  <option key={r.id} value={r.name}>{r.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm text-[#8B9CB8]">Area</label>
+            <select
+              value={formData.area}
+              disabled={!formData.region}
+              onChange={(e) => setFormData({ ...formData, area: e.target.value })}
+              className="w-full px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] focus:border-[#3A9EFF] outline-none disabled:opacity-50"
+            >
+              <option value="">Select Area</option>
+              {filteredAreas.map((a: any) => (
+                <option key={a.id} value={a.name}>{a.name}</option>
+              ))}
+            </select>
+          </div>
+          {/* END HIERARCHY FIELDS */}
 
           <div className="space-y-2">
             <label className="text-sm text-[#8B9CB8]">Monthly Target (BDT)</label>
