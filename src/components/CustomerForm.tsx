@@ -844,7 +844,7 @@ function RecurringShopFields({ formData, setFormData }: any) {
                 <CardHeader>
                     <CardTitle className="text-[#F0F4F8] flex items-center gap-2">
                         <Store className="w-5 h-5 text-[#3A9EFF]" />
-                        My Monthly Sales
+                        My Monthly Sales <span className="text-[#8B9CB8] text-sm font-normal">(Optional)</span>
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
