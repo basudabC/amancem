@@ -280,6 +280,8 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
         setIsSubmitting(true);
 
         try {
+            console.log('Submitting Customer Form. Data:', formData);
+
             // Prepare data based on pipeline type
             const customerData: any = {
                 name: formData.name,
@@ -308,7 +310,68 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                 }
             }
 
+            // STRICT VALIDATION: Check all mandatory fields
+            const mandatoryFields = [
+                { key: 'name', label: pipeline === 'recurring' ? 'Shop Name' : 'Project Name' },
+                { key: 'owner_name', label: 'Owner Name' },
+                { key: 'phone', label: 'Phone Number' },
+                { key: 'address', label: 'Address' },
+                { key: 'region_id', label: 'Region' },
+                { key: 'area_id', label: 'Area' },
+                { key: 'territory_id', label: 'Territory' },
+                { key: 'lat', label: 'GPS Latitude' },
+                { key: 'lng', label: 'GPS Longitude' },
+            ];
+
+            for (const field of mandatoryFields) {
+                const val = formData[field.key as keyof CustomerFormData];
+                const isValid = typeof val === 'string' ? val.trim().length > 0 : !!val;
+
+                if (!isValid) {
+                    toast.error(`Please fill in ${field.label}`);
+                    setIsSubmitting(false);
+                    return;
+                }
+                // Special check for GPS 0,0 which is technically valid but practically invalid
+                if ((field.key === 'lat' || field.key === 'lng') && Number(val) === 0) {
+                    toast.error(`Please provide valid ${field.label}`);
+                    setIsSubmitting(false);
+                    return;
+                }
+            }
+
+            customerData.territory_id = formData.territory_id;
+            customerData.region_id = formData.region_id;
+            customerData.area_id = formData.area_id;
+
             if (pipeline === 'recurring') {
+                // RECURRING SPECIFIC VALIDATION
+                if (!formData.customer_type) {
+                    toast.error('Please select Customer Type');
+                    setIsSubmitting(false);
+                    return;
+                }
+                if (!formData.owner_age || formData.owner_age <= 0) {
+                    toast.error('Please enter a valid Owner Age');
+                    setIsSubmitting(false);
+                    return;
+                }
+                if (!formData.storage_capacity || formData.storage_capacity <= 0) {
+                    toast.error('Please enter Storage Capacity');
+                    setIsSubmitting(false);
+                    return;
+                }
+                if (!formData.credit_practice) {
+                    toast.error('Please select Credit Practice');
+                    setIsSubmitting(false);
+                    return;
+                }
+                if (formData.credit_practice === 'credit' && (!formData.credit_days || formData.credit_days <= 0)) {
+                    toast.error('Please enter Credit Days');
+                    setIsSubmitting(false);
+                    return;
+                }
+
                 // Recurring shop fields - ensure we save even 0 values
                 customerData.shop_name = formData.shop_name || formData.name;
                 customerData.monthly_sales_advance = formData.monthly_sales_advance || 0;
@@ -339,6 +402,28 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                     classic: customerData.monthly_sales_classic,
                 });
             } else {
+                // PROJECT CUSTOMER SPECIFIC VALIDATION
+                if (!formData.built_up_area || formData.built_up_area <= 0) {
+                    toast.error('Please enter valid Built Up Area');
+                    setIsSubmitting(false);
+                    return;
+                }
+                if (!formData.number_of_floors || formData.number_of_floors <= 0) {
+                    toast.error('Please enter valid Number of Floors');
+                    setIsSubmitting(false);
+                    return;
+                }
+                if (!formData.structure_type) {
+                    toast.error('Please select Structure Type');
+                    setIsSubmitting(false);
+                    return;
+                }
+                if (formData.project_started === undefined) {
+                    toast.error('Please select Project Started status');
+                    setIsSubmitting(false);
+                    return;
+                }
+
                 // Project customer fields
                 customerData.built_up_area = formData.built_up_area;
                 customerData.number_of_floors = formData.number_of_floors;
@@ -536,7 +621,17 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                                     <Label className="text-[#F0F4F8]">Region *</Label>
                                     <Select
                                         value={formData.region || ''}
-                                        onValueChange={(v) => setFormData({ ...formData, region: v, area: '', territory_id: '' })}
+                                        onValueChange={(v) => {
+                                            const selected = regions.find((r: any) => r.name === v);
+                                            setFormData({
+                                                ...formData,
+                                                region: v,
+                                                region_id: selected?.id,
+                                                area: '',
+                                                area_id: '',
+                                                territory_id: ''
+                                            });
+                                        }}
                                     >
                                         <SelectTrigger className="bg-[#061A3A] border-white/10 text-[#F0F4F8]">
                                             <SelectValue placeholder="Select Region" />
@@ -553,7 +648,15 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                                     <Label className="text-[#F0F4F8]">Area *</Label>
                                     <Select
                                         value={formData.area || ''} // Using Name
-                                        onValueChange={(v) => setFormData({ ...formData, area: v, territory_id: '' })}
+                                        onValueChange={(v) => {
+                                            const selected = filteredAreas.find((a: any) => a.name === v);
+                                            setFormData({
+                                                ...formData,
+                                                area: v,
+                                                area_id: selected?.id,
+                                                territory_id: ''
+                                            });
+                                        }}
                                         disabled={!formData.region}
                                     >
                                         <SelectTrigger className="bg-[#061A3A] border-white/10 text-[#F0F4F8]">

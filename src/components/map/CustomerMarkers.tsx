@@ -68,7 +68,7 @@ function createMarkerIcon(customer: Customer): google.maps.Icon {
   };
 }
 
-export function CustomerMarkers() {
+export function CustomerMarkers({ onEdit }: { onEdit?: (customer: Customer) => void }) {
   const { map } = useMapStore();
   const { user } = useAuthStore();
   const { data: teamMembers = [] } = useTeam();
@@ -76,8 +76,8 @@ export function CustomerMarkers() {
 
   // Calculate generic hierarchy territory list
   const allTerritoryIds = useMemo(() => {
-    // If country head, return undefined to fetch all
-    if (user?.role === 'country_head') return undefined;
+    // If country head or division head, return undefined to fetch all (RLS handles filtering)
+    if (user?.role === 'country_head' || user?.role === 'division_head') return undefined;
 
     const ids = new Set<string>();
     if (user?.territory_ids) user.territory_ids.forEach(id => ids.add(id));
@@ -175,15 +175,20 @@ export function CustomerMarkers() {
             pixelOffset: new google.maps.Size(0, -35),
           }}
         >
-          <CustomerInfoContent customer={activeMarker} />
+          <CustomerInfoContent customer={activeMarker} onEdit={onEdit} />
         </InfoWindow>
       )}
     </>
   );
 }
 
+interface CustomerInfoContentProps {
+  customer: Customer;
+  onEdit?: (customer: Customer) => void;
+}
+
 // Customer Info Window Content
-function CustomerInfoContent({ customer }: { customer: Customer }) {
+function CustomerInfoContent({ customer, onEdit }: CustomerInfoContentProps) {
   const territoryColor = customer.territory_color_key
     ? TERRITORY_COLORS[customer.territory_color_key as keyof typeof TERRITORY_COLORS]?.fill
     : '#3A9EFF';
@@ -209,52 +214,74 @@ function CustomerInfoContent({ customer }: { customer: Customer }) {
       }}
     >
       {/* Header */}
-      <div style={{ marginBottom: '12px' }}>
-        <div
-          style={{
-            fontFamily: 'Rajdhani, sans-serif',
-            fontWeight: 600,
-            fontSize: '16px',
-            color: '#F0F4F8',
-            lineHeight: 1.2,
-          }}
-        >
-          {customer.name}
-        </div>
-        <div style={{ marginTop: '4px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-          <span
+      <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <div
             style={{
-              background: isRecurring ? 'rgba(58,158,255,0.18)' : 'rgba(155,107,255,0.18)',
-              color: isRecurring ? '#3A9EFF' : '#9B6BFF',
-              fontSize: '9px',
+              fontFamily: 'Rajdhani, sans-serif',
               fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: '0.8px',
-              padding: '3px 8px',
-              borderRadius: '4px',
-              border: `1px solid ${isRecurring ? 'rgba(58,158,255,0.33)' : 'rgba(155,107,255,0.33)'}`,
+              fontSize: '16px',
+              color: '#F0F4F8',
+              lineHeight: 1.2,
             }}
           >
-            {isRecurring ? 'Recurring' : 'Project'}
-          </span>
-          {customer.last_outcome && typeof customer.last_outcome === 'string' && (
+            {customer.name}
+          </div>
+          <div style={{ marginTop: '4px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             <span
               style={{
-                background: `${getOutcomeColor(customer.last_outcome as VisitOutcome) || STATUS_COLORS.new}18`,
-                color: getOutcomeColor(customer.last_outcome as VisitOutcome) || STATUS_COLORS.new,
+                background: isRecurring ? 'rgba(58,158,255,0.18)' : 'rgba(155,107,255,0.18)',
+                color: isRecurring ? '#3A9EFF' : '#9B6BFF',
                 fontSize: '9px',
                 fontWeight: 600,
                 textTransform: 'uppercase',
                 letterSpacing: '0.8px',
                 padding: '3px 8px',
                 borderRadius: '4px',
-                border: `1px solid ${getOutcomeColor(customer.last_outcome as VisitOutcome) || STATUS_COLORS.new}33`,
+                border: `1px solid ${isRecurring ? 'rgba(58,158,255,0.33)' : 'rgba(155,107,255,0.33)'}`,
               }}
             >
-              {customer.last_outcome}
+              {isRecurring ? 'Recurring' : 'Project'}
             </span>
-          )}
+            {customer.last_outcome && typeof customer.last_outcome === 'string' && (
+              <span
+                style={{
+                  background: `${getOutcomeColor(customer.last_outcome as VisitOutcome) || STATUS_COLORS.new}18`,
+                  color: getOutcomeColor(customer.last_outcome as VisitOutcome) || STATUS_COLORS.new,
+                  fontSize: '9px',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.8px',
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  border: `1px solid ${getOutcomeColor(customer.last_outcome as VisitOutcome) || STATUS_COLORS.new}33`,
+                }}
+              >
+                {customer.last_outcome}
+              </span>
+            )}
+          </div>
         </div>
+        {onEdit && (
+          <button
+            onClick={() => onEdit(customer)}
+            style={{
+              background: 'rgba(255,255,255,0.1)',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '4px 8px',
+              cursor: 'pointer',
+              color: '#3A9EFF',
+              fontSize: '11px',
+              fontWeight: 600,
+              transition: 'background 0.2s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(58,158,255,0.2)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
+          >
+            Edit
+          </button>
+        )}
       </div>
 
       {/* Divider */}

@@ -18,8 +18,10 @@ export interface CustomerFormData {
   email?: string;
   address?: string;
   region?: string;
-  territory_id?: string;
+  region_id?: string;
   area?: string;
+  area_id?: string;
+  territory_id?: string;
   lat?: number;
   lng?: number;
   pipeline: PipelineType;

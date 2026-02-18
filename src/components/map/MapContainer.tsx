@@ -1,8 +1,4 @@
-// ============================================================
-// AMAN CEMENT CRM — Google Maps Container Component
-// ============================================================
-
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { GoogleMap, useJsApiLoader } from '@react-google-maps/api';
 import { useMapStore } from '@/store/mapStore';
 import { MAP_CONFIG, AMAN_MAP_STYLES } from '@/lib/constants';
@@ -11,6 +7,9 @@ import { CustomerMarkers } from './CustomerMarkers';
 import { HeatmapLayer } from './HeatmapLayer';
 import { MapControls } from './MapControls';
 import { TerritoryPanel } from './TerritoryPanel';
+import { CustomerForm } from '@/components/CustomerForm';
+import type { Customer } from '@/types';
+import { useQueryClient } from '@tanstack/react-query';
 
 const mapContainerStyle = {
   width: '100%',
@@ -19,6 +18,9 @@ const mapContainerStyle = {
 
 export function MapContainer() {
   const { setMap } = useMapStore();
+  const [showCustomerForm, setShowCustomerForm] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const queryClient = useQueryClient();
 
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: window.env?.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
@@ -53,6 +55,17 @@ export function MapContainer() {
   const onUnmount = useCallback(() => {
     setMap(null);
   }, [setMap]);
+
+  const handleEditCustomer = useCallback((customer: Customer) => {
+    setSelectedCustomer(customer);
+    setShowCustomerForm(true);
+  }, []);
+
+  const handleFormSuccess = useCallback(() => {
+    setShowCustomerForm(false);
+    setSelectedCustomer(null);
+    queryClient.invalidateQueries({ queryKey: ['map-customers'] });
+  }, [queryClient]);
 
   if (loadError) {
     return (
@@ -90,7 +103,7 @@ export function MapContainer() {
         onUnmount={onUnmount}
       >
         <TerritoryPolygons />
-        <CustomerMarkers />
+        <CustomerMarkers onEdit={handleEditCustomer} />
         <HeatmapLayer />
       </GoogleMap>
 
@@ -99,6 +112,15 @@ export function MapContainer() {
 
       {/* Territory Info Panel */}
       <TerritoryPanel />
+
+      {/* Helper Components */}
+      <CustomerForm
+        open={showCustomerForm}
+        onOpenChange={setShowCustomerForm}
+        customer={selectedCustomer}
+        onSuccess={handleFormSuccess}
+      />
     </div>
   );
 }
+
