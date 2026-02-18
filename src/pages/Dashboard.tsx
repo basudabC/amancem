@@ -19,6 +19,7 @@ export function Dashboard() {
         return <DashboardSupervisor />;
       case 'area_manager':
       case 'regional_manager':
+      case 'division_head':
       case 'country_head':
         return <DashboardManagement />;
       default:
