@@ -446,9 +446,6 @@ export function Projects() {
   // Filter projects
   const filteredProjects = useMemo(() => {
     return projects.filter((project) => {
-      const data = project.pipeline_data as ProjectCustomerData;
-      if (!data) return false; // Skip projects without pipeline_data
-
       // Search filter
       const matchesSearch =
         project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -456,10 +453,11 @@ export function Projects() {
         project.area?.toLowerCase().includes(searchQuery.toLowerCase());
 
       // Stage filter
+      const stage = project.construction_stage || 0;
       let matchesStage = true;
-      if (filterStage === 'not_started') matchesStage = data.construction_stage_percent === 0;
-      if (filterStage === 'in_progress') matchesStage = data.construction_stage_percent > 0 && data.construction_stage_percent < 80;
-      if (filterStage === 'near_complete') matchesStage = data.construction_stage_percent >= 80;
+      if (filterStage === 'not_started') matchesStage = stage === 0;
+      if (filterStage === 'in_progress') matchesStage = stage > 0 && stage < 80;
+      if (filterStage === 'near_complete') matchesStage = stage >= 80;
 
       // Territory filter
       const matchesTerritory = filterTerritory === 'all' || project.territory_id === filterTerritory;
@@ -471,13 +469,13 @@ export function Projects() {
   // Stats
   const stats = useMemo(() => {
     const total = projects.length;
-    const notStarted = projects.filter(p => (p.pipeline_data as ProjectCustomerData)?.construction_stage_percent === 0).length;
+    const notStarted = projects.filter(p => (p.construction_stage || 0) === 0).length;
     const inProgress = projects.filter(p => {
-      const stage = (p.pipeline_data as ProjectCustomerData)?.construction_stage_percent || 0;
+      const stage = p.construction_stage || 0;
       return stage > 0 && stage < 80;
     }).length;
-    const nearComplete = projects.filter(p => (p.pipeline_data as ProjectCustomerData)?.construction_stage_percent >= 80).length;
-    const totalRequirement = projects.reduce((sum, p) => sum + ((p.pipeline_data as ProjectCustomerData)?.cement_requirement_tons || 0), 0);
+    const nearComplete = projects.filter(p => (p.construction_stage || 0) >= 80).length;
+    const totalRequirement = projects.reduce((sum, p) => sum + (p.cement_required || 0), 0);
 
     return { total, notStarted, inProgress, nearComplete, totalRequirement };
   }, [projects]);
@@ -657,7 +655,14 @@ export function Projects() {
               </thead>
               <tbody className="divide-y divide-white/5">
                 {filteredProjects.map((project) => {
-                  const data = project.pipeline_data as ProjectCustomerData;
+                  const data = {
+                    construction_stage_percent: project.construction_stage || 0,
+                    number_of_floors: project.number_of_floors || 0,
+                    structure_type: project.structure_type || 'N/A',
+                    cement_consumed_tons: project.cement_consumed || 0,
+                    cement_requirement_tons: project.cement_required || 0,
+                    current_brand: project.current_brand,
+                  } as ProjectCustomerData;
                   const cementProgress = data.cement_requirement_tons > 0
                     ? (data.cement_consumed_tons / data.cement_requirement_tons) * 100
                     : 0;
