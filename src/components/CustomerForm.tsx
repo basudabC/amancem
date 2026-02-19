@@ -108,6 +108,10 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
         promotions_offered: [],
     });
 
+    const [errors, setErrors] = useState<Record<string, boolean>>({});
+
+
+
 
 
     /* --- Hierarchy Logic --- */
@@ -345,32 +349,8 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
             customerData.area_id = formData.area_id;
 
             if (pipeline === 'recurring') {
-                // RECURRING SPECIFIC VALIDATION
-                if (!formData.customer_type) {
-                    toast.error('Please select Customer Type');
-                    setIsSubmitting(false);
-                    return;
-                }
-                if (!formData.owner_age || formData.owner_age <= 0) {
-                    toast.error('Please enter a valid Owner Age');
-                    setIsSubmitting(false);
-                    return;
-                }
-                if (!formData.storage_capacity || formData.storage_capacity <= 0) {
-                    toast.error('Please enter Storage Capacity');
-                    setIsSubmitting(false);
-                    return;
-                }
-                if (!formData.credit_practice) {
-                    toast.error('Please select Credit Practice');
-                    setIsSubmitting(false);
-                    return;
-                }
-                if (formData.credit_practice === 'credit' && (!formData.credit_days || formData.credit_days <= 0)) {
-                    toast.error('Please enter Credit Days');
-                    setIsSubmitting(false);
-                    return;
-                }
+                // RECURRING SPECIFIC VALIDATION REMOVED AS REQUESTED
+                // Only Basic Info is mandatory now.
 
                 // Recurring shop fields - ensure we save even 0 values
                 customerData.shop_name = formData.shop_name || formData.name;
@@ -538,7 +518,7 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                                             required
                                             value={formData.name || ''}
                                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                            className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
+                                            className={`bg-[#061A3A] border-white/10 text-[#F0F4F8] ${errors.name ? 'border-red-500 ring-1 ring-red-500' : ''}`}
                                             placeholder={pipeline === 'recurring' ? 'Rahman Hardware' : 'Rahman Residence'}
                                         />
                                     </div>
@@ -565,7 +545,7 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                                             required
                                             value={formData.owner_name || ''}
                                             onChange={(e) => setFormData({ ...formData, owner_name: e.target.value })}
-                                            className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
+                                            className={`bg-[#061A3A] border-white/10 text-[#F0F4F8] ${errors.owner_name ? 'border-red-500 ring-1 ring-red-500' : ''}`}
                                             placeholder="Mr. Abdur Rahman"
                                         />
                                     </div>
@@ -590,7 +570,7 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                                             required
                                             value={formData.phone || ''}
                                             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                            className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
+                                            className={`bg-[#061A3A] border-white/10 text-[#F0F4F8] ${errors.phone ? 'border-red-500 ring-1 ring-red-500' : ''}`}
                                             placeholder="01712-XXXXXX"
                                         />
                                     </div>
@@ -611,7 +591,7 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                                     <Textarea
                                         value={formData.address || ''}
                                         onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                                        className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
+                                        className={`bg-[#061A3A] border-white/10 text-[#F0F4F8] ${errors.address ? 'border-red-500 ring-1 ring-red-500' : ''}`}
                                         placeholder="Full address..."
                                         rows={2}
                                     />
@@ -633,7 +613,7 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                                             });
                                         }}
                                     >
-                                        <SelectTrigger className="bg-[#061A3A] border-white/10 text-[#F0F4F8]">
+                                        <SelectTrigger className={`bg-[#061A3A] border-white/10 text-[#F0F4F8] ${errors.region_id ? 'border-red-500 ring-1 ring-red-500' : ''}`}>
                                             <SelectValue placeholder="Select Region" />
                                         </SelectTrigger>
                                         <SelectContent className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8]">
@@ -659,7 +639,7 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                                         }}
                                         disabled={!formData.region}
                                     >
-                                        <SelectTrigger className="bg-[#061A3A] border-white/10 text-[#F0F4F8]">
+                                        <SelectTrigger className={`bg-[#061A3A] border-white/10 text-[#F0F4F8] ${errors.area_id ? 'border-red-500 ring-1 ring-red-500' : ''}`}>
                                             <SelectValue placeholder="Select Area" />
                                         </SelectTrigger>
                                         <SelectContent className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8]">
@@ -677,7 +657,7 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                                         onValueChange={(v) => setFormData({ ...formData, territory_id: v })}
                                         disabled={!formData.area}
                                     >
-                                        <SelectTrigger className="bg-[#061A3A] border-white/10 text-[#F0F4F8]">
+                                        <SelectTrigger className={`bg-[#061A3A] border-white/10 text-[#F0F4F8] ${errors.territory_id ? 'border-red-500 ring-1 ring-red-500' : ''}`}>
                                             <SelectValue placeholder="Select Territory" />
                                         </SelectTrigger>
                                         <SelectContent className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8]">
@@ -697,7 +677,7 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                                             step="any"
                                             value={formData.lat || ''}
                                             onChange={(e) => setFormData({ ...formData, lat: parseFloat(e.target.value) })}
-                                            className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
+                                            className={`bg-[#061A3A] border-white/10 text-[#F0F4F8] ${errors.lat ? 'border-red-500 ring-1 ring-red-500' : ''}`}
                                             placeholder="Latitude (23.8715)"
                                         />
                                         <Input
@@ -706,7 +686,7 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                                             step="any"
                                             value={formData.lng || ''}
                                             onChange={(e) => setFormData({ ...formData, lng: parseFloat(e.target.value) })}
-                                            className="bg-[#061A3A] border-white/10 text-[#F0F4F8]"
+                                            className={`bg-[#061A3A] border-white/10 text-[#F0F4F8] ${errors.lng ? 'border-red-500 ring-1 ring-red-500' : ''}`}
                                             placeholder="Longitude (90.3985)"
                                         />
                                         <Button
