@@ -2,7 +2,7 @@
 // AMAN CEMENT CRM — Service Worker
 // ============================================================
 
-const CACHE_NAME = 'amanedge-crm-v1';
+const CACHE_NAME = 'amanedge-crm-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -14,7 +14,7 @@ const STATIC_ASSETS = [
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing...');
-  
+
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[SW] Caching static assets');
@@ -23,14 +23,14 @@ self.addEventListener('install', (event) => {
       console.error('[SW] Cache failed:', err);
     })
   );
-  
+
   self.skipWaiting();
 });
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating...');
-  
+
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -43,7 +43,7 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
-  
+
   self.clients.claim();
 });
 
@@ -51,22 +51,22 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
-  
+
   // Skip non-GET requests
   if (request.method !== 'GET') {
     return;
   }
-  
+
   // Skip Google Maps API requests
   if (url.hostname.includes('googleapis.com') || url.hostname.includes('gstatic.com')) {
     return;
   }
-  
+
   // Skip Supabase API requests
   if (url.hostname.includes('supabase.co')) {
     return;
   }
-  
+
   // Network-first strategy for API calls
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
@@ -88,7 +88,7 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
-  
+
   // Cache-first strategy for static assets
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
@@ -100,10 +100,10 @@ self.addEventListener('fetch', (event) => {
               cache.put(request, response);
             });
           }
-        }).catch(() => {});
+        }).catch(() => { });
         return cachedResponse;
       }
-      
+
       // Fetch from network and cache
       return fetch(request).then((response) => {
         if (response.ok) {
@@ -134,7 +134,7 @@ self.addEventListener('sync', (event) => {
 // Push notification support
 self.addEventListener('push', (event) => {
   if (!event.data) return;
-  
+
   const data = event.data.json();
   const options = {
     body: data.body,
@@ -144,7 +144,7 @@ self.addEventListener('push', (event) => {
     requireInteraction: data.requireInteraction || false,
     actions: data.actions || [],
   };
-  
+
   event.waitUntil(
     self.registration.showNotification(data.title, options)
   );
@@ -153,10 +153,10 @@ self.addEventListener('push', (event) => {
 // Notification click handler
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  
+
   const action = event.action;
   const notification = event.notification;
-  
+
   event.waitUntil(
     clients.matchAll({ type: 'window' }).then((clientList) => {
       // Focus existing window or open new one
