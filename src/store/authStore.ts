@@ -105,15 +105,32 @@ export const useAuthStore = create<AuthState>()(
         console.log('🔄 Refreshing user profile...');
         try {
           const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('User refresh timeout')), 3000);
+            setTimeout(() => reject(new Error('User refresh timeout')), 10000); // Increased to 10s
           });
           const userPromise = getCurrentUser();
           const user = await Promise.race([userPromise, timeoutPromise]) as any;
-          console.log('✅ User refreshed:', user?.email || 'No user');
-          set({ user, isAuthenticated: !!user });
+
+          if (user) {
+            console.log('✅ User refreshed:', user.email);
+            set({ user, isAuthenticated: true });
+          } else {
+            console.warn('⚠️ User refresh returned null, but not logging out immediately');
+            // Check if we have a session but failed to get profile
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+              set({ user: null, isAuthenticated: false });
+            }
+          }
         } catch (error: any) {
           console.error('❌ Refresh user failed:', error?.message);
-          set({ user: null, isAuthenticated: false });
+          // Do NOT log out on timeout/error, trust the persisted state for now
+          // unless proper auth error handling suggests otherwise
+          if (error?.message === 'User refresh timeout') {
+            console.log('ℹ️ Keeping existing user state due to timeout');
+          } else {
+            // For other errors, we might want to be more careful, but better to stay logged in than out
+            // unless it's a 401
+          }
         }
       },
 
@@ -149,9 +166,9 @@ export const initializeAuth = async () => {
   store.setLoading(true);
 
   try {
-    // Add timeout to prevent infinite loading
+    // Add timeout to prevent infinite loading - Increased to 15s for mobile
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Auth initialization timeout')), 5000);
+      setTimeout(() => reject(new Error('Auth initialization timeout')), 15000);
     });
 
     const authPromise = (async () => {
@@ -164,18 +181,28 @@ export const initializeAuth = async () => {
       }
 
       if (session) {
-        console.log('✅ Session found, loading user profile...');
+        console.log('✅ Session found, verifying user...');
         store.setSession(session);
+        // Attempt to refresh, but don't block everything if it fails (refreshUser handles its own errors)
         await store.refreshUser();
       } else {
         console.log('ℹ️ No active session found');
+        // Clear state if definitely no session
+        store.setUser(null);
+        store.setSession(null);
       }
     })();
 
     await Promise.race([authPromise, timeoutPromise]);
   } catch (error: any) {
-    console.error('❌ Auth initialization failed:', error?.message || error);
-    // Don't throw - just continue with no user
+    console.error('❌ Auth initialization failed/timed out:', error?.message || error);
+    // On timeout, if we have persisted user, let them stay logic
+    const currentUser = store.user;
+    if (currentUser) {
+      console.log('⚠️ Recovering from timeout with persisted user');
+      // Ensure isAuthenticated is true if we have a user
+      useAuthStore.setState({ isAuthenticated: true });
+    }
   } finally {
     console.log('✅ Auth initialization complete');
     store.setLoading(false);

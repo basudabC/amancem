@@ -478,7 +478,10 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[85vw] max-h-[90vh] overflow-y-auto bg-[#061A3A] border-white/10">
+            <DialogContent
+                className="sm:max-w-[85vw] max-h-[90vh] overflow-y-auto bg-[#061A3A] border-white/10"
+                onInteractOutside={(e) => e.preventDefault()}
+            >
                 <DialogHeader>
                     <DialogTitle className="text-[#F0F4F8] text-2xl">
                         {customer ? 'Edit Customer' : 'Add New Customer'}
