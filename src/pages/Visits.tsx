@@ -438,6 +438,10 @@ export function Visits() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
   const [isInstantVisiting, setIsInstantVisiting] = useState(false);
+  // Default 'mine' for sales reps so they see only their own shops by default
+  const [priorityFilter, setPriorityFilter] = useState<'mine' | 'all'>(
+    user?.role === 'sales_rep' ? 'mine' : 'all'
+  );
 
   // Error Modal State
   const [errorModalOpen, setErrorModalOpen] = useState(false);
@@ -584,31 +588,42 @@ export function Visits() {
     enabled: !!user?.id
   });
 
-  // 2. Fetch Visit Stats (Separate lightweight query for top cards)
+  // 2. Fetch Visit Stats — monthly total + today breakdown, scoped to current user for sales reps
   const { data: stats } = useQuery({
-    queryKey: ['visit-stats-summary'],
+    queryKey: ['visit-stats-summary', user?.id, user?.role],
     queryFn: async () => {
-      // Logic to fetch counts.
-      // For now, simpler to fetch all visits for the team/user and count them.
-      // Optimization: This could be an RPC or explicit count queries.
-      // Let's stick to fetching visits but selecting only 'status' to save bandwidth.
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
 
-      let query = supabase.from('visits').select('status, scheduled_at');
+      let query = supabase
+        .from('visits')
+        .select('id, status, scheduled_at, checked_in_at')
+        .gte('scheduled_at', startOfMonth); // This month only
 
-      // Apply hierarchy filter if supervisor (omitted for brevity, simpler RLS usually handles this)
-      // Assuming RLS 'hierarchy_view_visits' is active:
+      // Sales reps only see their own visits in stats
+      if (user?.role === 'sales_rep' && user?.id) {
+        query = query.eq('sales_rep_id', user.id);
+      }
 
       const { data } = await query;
       const visits = data || [];
 
+      const todayVisits = visits.filter(v =>
+        v.scheduled_at && new Date(v.scheduled_at) >= new Date(startOfToday)
+      );
+
       return {
-        total: visits.length,
+        monthly: visits.length,
+        today: todayVisits.length,
         scheduled: visits.filter(v => v.status === 'scheduled').length,
         inProgress: visits.filter(v => v.status === 'in_progress').length,
         completed: visits.filter(v => v.status === 'completed').length,
-        today: visits.filter(v => v.scheduled_at && isToday(parseISO(v.scheduled_at))).length
+        todayDone: todayVisits.filter(v => v.status === 'completed').length,
       };
-    }
+    },
+    enabled: !!user?.id,
+    staleTime: 30 * 1000,
   });
 
   // Filter Logic
@@ -619,10 +634,15 @@ export function Visits() {
         c.area?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.sales_rep_name?.toLowerCase().includes(searchQuery.toLowerCase());
 
-      // Priority/Status filter logic could go here
-      return matchSearch;
+      // For sales reps: 'mine' = only shops they created; 'all' = everyone
+      const matchOwner =
+        priorityFilter === 'all' || user?.role !== 'sales_rep'
+          ? true
+          : (c as any).created_by === user?.id;
+
+      return matchSearch && matchOwner;
     });
-  }, [customers, searchQuery]);
+  }, [customers, searchQuery, priorityFilter, user]);
 
   const openSchedule = (customer: Customer) => {
     setSelectedCustomer(customer);
@@ -667,12 +687,43 @@ export function Visits() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <StatsCard icon={<CalendarCheck className="text-[#3A9EFF]" />} label="Total Visits" value={stats?.total || 0} color="bg-[#3A9EFF]" />
-        <StatsCard icon={<Clock className="text-[#D4A843]" />} label="Scheduled" value={stats?.scheduled || 0} color="bg-[#D4A843]" />
-        <StatsCard icon={<TrendingUp className="text-[#FF7C3A]" />} label="In Progress" value={stats?.inProgress || 0} color="bg-[#FF7C3A]" />
-        <StatsCard icon={<CheckCircle2 className="text-[#2ECC71]" />} label="Completed" value={stats?.completed || 0} color="bg-[#2ECC71]" />
-        <StatsCard icon={<Calendar className="text-[#C41E3A]" />} label="Today" value={stats?.today || 0} color="bg-[#C41E3A]" />
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <StatsCard
+          icon={<CalendarCheck className="text-[#3A9EFF]" />}
+          label="Monthly Visits"
+          value={stats?.monthly ?? 0}
+          color="bg-[#3A9EFF]"
+        />
+        <StatsCard
+          icon={<Calendar className="text-[#2ECC71]" />}
+          label="Today's Visits"
+          value={stats?.today ?? 0}
+          color="bg-[#2ECC71]"
+        />
+        <StatsCard
+          icon={<CheckCircle2 className="text-[#9B6BFF]" />}
+          label="Done Today"
+          value={stats?.todayDone ?? 0}
+          color="bg-[#9B6BFF]"
+        />
+        <StatsCard
+          icon={<Clock className="text-[#D4A843]" />}
+          label="Scheduled"
+          value={stats?.scheduled ?? 0}
+          color="bg-[#D4A843]"
+        />
+        <StatsCard
+          icon={<TrendingUp className="text-[#FF7C3A]" />}
+          label="In Progress"
+          value={stats?.inProgress ?? 0}
+          color="bg-[#FF7C3A]"
+        />
+        <StatsCard
+          icon={<CheckCircle2 className="text-[#C41E3A]" />}
+          label="Completed"
+          value={stats?.completed ?? 0}
+          color="bg-[#C41E3A]"
+        />
       </div>
 
       {viewMode === 'shops' ? (
@@ -691,9 +742,15 @@ export function Visits() {
             </div>
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-[#8B9CB8]" />
-              <select className="bg-[#061A3A] border border-white/10 text-[#F0F4F8] rounded-lg px-3 py-2 outline-none">
+              <select
+                value={priorityFilter}
+                onChange={e => setPriorityFilter(e.target.value as 'mine' | 'all')}
+                className="bg-[#061A3A] border border-white/10 text-[#F0F4F8] rounded-lg px-3 py-2 outline-none focus:border-[#3A9EFF]"
+              >
+                {user?.role === 'sales_rep' && (
+                  <option value="mine">My Shops</option>
+                )}
                 <option value="all">All Priorities</option>
-                <option value="high">High Priority</option>
               </select>
             </div>
           </div>

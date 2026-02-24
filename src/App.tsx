@@ -17,6 +17,7 @@ import { Projects } from '@/pages/Projects';
 import { Visits } from '@/pages/Visits';
 import { Team } from '@/pages/Team';
 import { Analytics } from '@/pages/Analytics';
+import { DetailedAnalytics } from '@/pages/DetailedAnalytics';
 import { Territories } from '@/pages/Territories';
 import { Admin } from '@/pages/Admin';
 import { Settings } from '@/pages/Settings';
@@ -186,6 +187,14 @@ function AppContent() {
         element={
           <ProtectedRoute>
             <Analytics />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/detailed-analytics"
+        element={
+          <ProtectedRoute>
+            <DetailedAnalytics />
           </ProtectedRoute>
         }
       />

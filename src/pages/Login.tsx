@@ -10,12 +10,13 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { APP_CONFIG } from '@/lib/constants';
-import { Building2, Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
+import { Building2, Mail, Lock, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
 
 export function Login() {
   const { login } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -26,15 +27,15 @@ export function Login() {
 
     try {
       const { error: loginError } = await login(email, password);
-      
+
       if (loginError) {
-        setError(loginError.message || 'Invalid credentials');
+        setError(loginError.message || 'Invalid credentials. Please check your email and password.');
         return;
       }
 
       // Navigate will happen automatically via auth state change
     } catch (err) {
-      setError('An unexpected error occurred');
+      setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -74,6 +75,7 @@ export function Login() {
                 </Alert>
               )}
 
+              {/* Email Field */}
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-[#F0F4F8]">
                   Email
@@ -88,10 +90,12 @@ export function Login() {
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-10 bg-[#0F3460] border-white/10 text-[#F0F4F8] placeholder:text-[#4A5B7A] focus:border-[#C41E3A] focus:ring-[#C41E3A]"
                     required
+                    autoComplete="email"
                   />
                 </div>
               </div>
 
+              {/* Password Field with Show/Hide Toggle */}
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-[#F0F4F8]">
                   Password
@@ -100,13 +104,23 @@ export function Login() {
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8B9CB8]" />
                   <Input
                     id="password"
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 bg-[#0F3460] border-white/10 text-[#F0F4F8] placeholder:text-[#4A5B7A] focus:border-[#C41E3A] focus:ring-[#C41E3A]"
+                    className="pl-10 pr-10 bg-[#0F3460] border-white/10 text-[#F0F4F8] placeholder:text-[#4A5B7A] focus:border-[#C41E3A] focus:ring-[#C41E3A]"
                     required
+                    autoComplete="current-password"
                   />
+                  {/* Show/Hide Password Button */}
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8B9CB8] hover:text-[#F0F4F8] transition-colors p-0.5"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
 
@@ -125,35 +139,6 @@ export function Login() {
                 )}
               </Button>
             </form>
-
-            {/* Demo Credentials */}
-            <div className="mt-6 pt-4 border-t border-white/10">
-              <p className="text-[#8B9CB8] text-xs text-center mb-3">
-                Demo Credentials
-              </p>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('rep@amancem.com');
-                    setPassword('password');
-                  }}
-                  className="p-2 bg-[#0F3460] rounded text-[#8B9CB8] hover:text-[#F0F4F8] transition-colors"
-                >
-                  Sales Rep
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('manager@amancem.com');
-                    setPassword('password');
-                  }}
-                  className="p-2 bg-[#0F3460] rounded text-[#8B9CB8] hover:text-[#F0F4F8] transition-colors"
-                >
-                  Manager
-                </button>
-              </div>
-            </div>
           </CardContent>
         </Card>
 

@@ -4,15 +4,16 @@
 
 import { useCustomers } from '@/hooks/useCustomers';
 import { useTerritories } from '@/hooks/useTerritories';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { TERRITORY_COLORS } from '@/lib/constants';
-import { 
-  Map, 
-  Users, 
-  Store, 
-  TrendingUp, 
+import {
+  Map,
+  Users,
+  Store,
+  TrendingUp,
   Target,
   Flame,
   AlertTriangle,
@@ -23,6 +24,7 @@ import {
 export function DashboardManagement() {
   const { data: customers } = useCustomers({ status: 'active' });
   const { data: territories } = useTerritories();
+  const navigate = useNavigate();
 
   const totalCustomers = customers?.length || 0;
   const recurringCustomers = customers?.filter(c => c.pipeline === 'recurring').length || 0;
@@ -65,14 +67,14 @@ export function DashboardManagement() {
           </p>
         </div>
         <div className="flex gap-3">
-          <Button 
+          <Button
             variant="outline"
             className="border-[#3A9EFF] text-[#3A9EFF]"
           >
             <Map className="w-4 h-4 mr-2" />
             View Full Map
           </Button>
-          <Button className="bg-[#C41E3A] hover:bg-[#9B1830]">
+          <Button className="bg-[#C41E3A] hover:bg-[#9B1830]" onClick={() => navigate('/detailed-analytics')}>
             <BarChart3 className="w-4 h-4 mr-2" />
             Detailed Analytics
           </Button>
@@ -191,8 +193,8 @@ export function DashboardManagement() {
                         <div className="text-xs text-[#8B9CB8] mb-1">
                           Coverage
                         </div>
-                        <Progress 
-                          value={territory.coverage} 
+                        <Progress
+                          value={territory.coverage}
                           className="w-20 h-1.5 bg-[#0A2A5C]"
                         />
                       </div>
@@ -222,21 +224,18 @@ export function DashboardManagement() {
               {leakageAlerts.map((alert, index) => (
                 <div
                   key={index}
-                  className={`flex items-start gap-3 p-3 rounded-lg ${
-                    alert.severity === 'critical'
+                  className={`flex items-start gap-3 p-3 rounded-lg ${alert.severity === 'critical'
                       ? 'bg-[#E74C5E]/10 border border-[#E74C5E]/30'
                       : 'bg-[#FF7C3A]/10 border border-[#FF7C3A]/30'
-                  }`}
+                    }`}
                 >
                   <AlertTriangle
-                    className={`w-5 h-5 flex-shrink-0 ${
-                      alert.severity === 'critical' ? 'text-[#E74C5E]' : 'text-[#FF7C3A]'
-                    }`}
+                    className={`w-5 h-5 flex-shrink-0 ${alert.severity === 'critical' ? 'text-[#E74C5E]' : 'text-[#FF7C3A]'
+                      }`}
                   />
                   <div>
-                    <p className={`text-sm font-medium ${
-                      alert.severity === 'critical' ? 'text-[#E74C5E]' : 'text-[#FF7C3A]'
-                    }`}>
+                    <p className={`text-sm font-medium ${alert.severity === 'critical' ? 'text-[#E74C5E]' : 'text-[#FF7C3A]'
+                      }`}>
                       {alert.type === 'dead_zone' && 'Dead Zone Detected'}
                       {alert.type === 'high_interest' && 'High Interest, No Order'}
                       {alert.type === 'target_gap' && 'Target Gap Alert'}

@@ -8,6 +8,9 @@ import { useConversions } from '@/hooks/useConversions';
 import { useTodayVisits } from '@/hooks/useVisits';
 import { useCustomers } from '@/hooks/useCustomers';
 import { useUserTerritories } from '@/hooks/useTerritories';
+import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -21,12 +24,39 @@ import {
   CheckCircle2,
   Target,
   BarChart3,
-  UserCheck
+  UserCheck,
+  Store,
+  Building2,
 } from 'lucide-react';
 
 export function DashboardSupervisor() {
   const { user } = useAuthStore();
   const { data: teamMembers = [] } = useTeam();
+  const navigate = useNavigate();
+
+  // Fetch shop counts for each team member (total recurring shops + projects)
+  const { data: teamShopCounts = {} } = useQuery({
+    queryKey: ['team-shop-counts', teamMembers.map(m => m.id).join(',')],
+    queryFn: async () => {
+      if (!teamMembers.length) return {};
+      const ids = teamMembers.map(m => m.id);
+      const { data, error } = await supabase
+        .from('customers')
+        .select('created_by, pipeline')
+        .in('created_by', ids)
+        .eq('status', 'active');
+      if (error) throw error;
+      const map: Record<string, { shops: number; projects: number }> = {};
+      for (const c of (data || [])) {
+        if (!map[c.created_by]) map[c.created_by] = { shops: 0, projects: 0 };
+        if (c.pipeline === 'recurring') map[c.created_by].shops++;
+        else map[c.created_by].projects++;
+      }
+      return map;
+    },
+    enabled: teamMembers.length > 0,
+    staleTime: 2 * 60 * 1000,
+  });
 
   // Calculate supervised territories from team + self
   const uniqueTerritoryIds = useMemo(() => {
@@ -114,7 +144,7 @@ export function DashboardSupervisor() {
             <UserCheck className="w-4 h-4 mr-2" />
             Team Details
           </Button>
-          <Button className="bg-[#C41E3A] hover:bg-[#9B1830]">
+          <Button className="bg-[#C41E3A] hover:bg-[#9B1830]" onClick={() => navigate('/detailed-analytics')}>
             <BarChart3 className="w-4 h-4 mr-2" />
             Analytics
           </Button>
@@ -155,52 +185,87 @@ export function DashboardSupervisor() {
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Team Performance */}
-        <Card className="bg-[#0A2A5C] border-white/10">
+        {/* Team Performance - full hierarchy */}
+        <Card className="bg-[#0A2A5C] border-white/10 lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-[#F0F4F8] flex items-center gap-2">
-              <Users className="w-5 h-5 text-[#3A9EFF]" />
-              Team Performance
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-[#F0F4F8] flex items-center gap-2">
+                <Users className="w-5 h-5 text-[#3A9EFF]" />
+                Full Team ({teamMembers.length})
+              </CardTitle>
+              <span className="text-xs text-[#8B9CB8]">All levels — direct reports &amp; their teams</span>
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
               {teamPerformance.length > 0 ? (
-                teamPerformance.map((member) => {
-                  const progress = Math.min((member.salesValue / member.target) * 100, 100);
-                  const achieved = member.salesValue.toLocaleString();
-                  return (
-                    <div key={member.id} className="p-3 bg-[#0F3460] rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-[#143874] rounded-full flex items-center justify-center">
-                            <span className="text-[#F0F4F8] font-semibold">
-                              {member.name?.charAt(0) || 'U'}
+                <table className="w-full text-sm">
+                  <thead className="bg-[#061A3A]">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs text-[#8B9CB8] uppercase">Name</th>
+                      <th className="px-4 py-3 text-left text-xs text-[#8B9CB8] uppercase">Role</th>
+                      <th className="px-4 py-3 text-center text-xs text-[#2ECC71] uppercase">Shops</th>
+                      <th className="px-4 py-3 text-center text-xs text-[#D4A843] uppercase">Projects</th>
+                      <th className="px-4 py-3 text-center text-xs text-[#3A9EFF] uppercase">Visits Today</th>
+                      <th className="px-4 py-3 text-center text-xs text-[#9B6BFF] uppercase">Conversions</th>
+                      <th className="px-4 py-3 text-center text-xs text-[#FF7C3A] uppercase">Sales ৳</th>
+                      <th className="px-4 py-3 text-right text-xs text-[#8B9CB8] uppercase">Target %</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {teamPerformance.map((member) => {
+                      const progress = Math.min(
+                        member.target > 0 ? (member.salesValue / member.target) * 100 : 0, 100
+                      );
+                      const shopData = (teamShopCounts as any)[member.id];
+                      const roleName = (teamMembers.find(m => m.id === member.id) as any)?.role || '';
+                      const roleColors: Record<string, string> = {
+                        sales_rep: 'text-[#3A9EFF] bg-[#3A9EFF]/10',
+                        supervisor: 'text-[#2ECC71] bg-[#2ECC71]/10',
+                        area_manager: 'text-[#D4A843] bg-[#D4A843]/10',
+                        regional_manager: 'text-[#9B6BFF] bg-[#9B6BFF]/10',
+                        division_head: 'text-[#FF7C3A] bg-[#FF7C3A]/10',
+                      };
+                      const roleColor = roleColors[roleName] || 'text-[#8B9CB8] bg-white/10';
+                      return (
+                        <tr key={member.id} className="hover:bg-white/5 transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-full bg-[#143874] flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+                                {member.name?.charAt(0) || 'U'}
+                              </div>
+                              <span className="text-[#F0F4F8] font-medium">{member.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`text-xs px-2 py-0.5 rounded ${roleColor}`}>
+                              {roleName.replace(/_/g, ' ')}
                             </span>
-                          </div>
-                          <div>
-                            <p className="text-[#F0F4F8] font-medium">{member.name}</p>
-                            <p className="text-[#8B9CB8] text-xs">
-                              {member.visits} visits • {member.conversions} conversions • ৳{achieved}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[#F0F4F8] font-semibold">
-                            {progress.toFixed(1)}%
-                          </p>
-                          <p className="text-[#8B9CB8] text-xs">of daily target</p>
-                        </div>
-                      </div>
-                      <Progress
-                        value={progress}
-                        className="h-1.5 bg-[#0A2A5C]"
-                      />
-                    </div>
-                  );
-                })
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="text-[#2ECC71] font-semibold">{shopData?.shops ?? '—'}</span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="text-[#D4A843] font-semibold">{shopData?.projects ?? '—'}</span>
+                          </td>
+                          <td className="px-4 py-3 text-center text-[#3A9EFF] font-semibold">{member.visits}</td>
+                          <td className="px-4 py-3 text-center text-[#9B6BFF] font-semibold">{member.conversions}</td>
+                          <td className="px-4 py-3 text-center text-[#FF7C3A] font-semibold">৳{member.salesValue.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <span className={`font-semibold ${progress >= 80 ? 'text-[#2ECC71]' : progress >= 50 ? 'text-[#D4A843]' : 'text-[#E74C5E]'}`}>
+                                {progress.toFixed(0)}%
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               ) : (
-                <div className="text-center py-8 text-[#8B9CB8]">
+                <div className="text-center py-10 text-[#8B9CB8]">
+                  <Users className="w-10 h-10 mx-auto mb-3 opacity-40" />
                   <p>No team members found</p>
                 </div>
               )}

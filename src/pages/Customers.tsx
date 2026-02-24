@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
-import { useCustomers } from '@/hooks/useCustomers';
+import { useCustomers, useDeleteCustomer } from '@/hooks/useCustomers';
 import { useCustomerRecentSales } from '@/hooks/useConversions';
 import { CustomerForm } from '@/components/CustomerForm';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Plus,
   Search,
   MapPin,
@@ -31,6 +41,8 @@ import {
   TrendingUp,
   Briefcase,
   UserPlus,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import { AssignCustomerDialog } from '@/components/AssignCustomerDialog';
 import type { Customer } from '@/types';
@@ -44,12 +56,16 @@ export function Customers() {
   const [showDetails, setShowDetails] = useState(false);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [customerToAssign, setCustomerToAssign] = useState<Customer | null>(null);
+  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const { data: customers, isLoading, refetch } = useCustomers({
     salesRepId: user?.role === 'sales_rep' ? user.id : undefined,
     pipeline: activeTab as 'recurring' | 'one_time',
     status: 'active',
   });
+
+  const deleteCustomer = useDeleteCustomer();
 
   const filteredCustomers = customers?.filter((customer: Customer) =>
     customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -68,13 +84,31 @@ export function Customers() {
     setShowCustomerForm(true);
   };
 
+  const handleDeleteRequest = (customer: Customer) => {
+    setCustomerToDelete(customer);
+    setShowDetails(false);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!customerToDelete) return;
+    try {
+      await deleteCustomer.mutateAsync(customerToDelete.id);
+      setShowDeleteConfirm(false);
+      setCustomerToDelete(null);
+      refetch();
+    } catch (err) {
+      console.error('Failed to delete customer:', err);
+    }
+  };
+
   const handleFormSuccess = () => {
-    // Refetch data to update UI
     refetch();
-    // Close both dialogs
     setShowCustomerForm(false);
     setShowDetails(false);
   };
+
+  const isCountryHead = user?.role === 'country_head';
 
   return (
     <div className="p-6 space-y-6">
@@ -113,8 +147,42 @@ export function Customers() {
           onOpenChange={setShowDetails}
           customer={selectedCustomer}
           onEdit={() => handleEditCustomer(selectedCustomer)}
+          onDelete={isCountryHead ? () => handleDeleteRequest(selectedCustomer) : undefined}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent className="bg-[#061A3A] border border-red-900/50">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[#F0F4F8] flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-500" />
+              Delete Customer Permanently
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-[#8B9CB8]">
+              Are you sure you want to permanently delete{' '}
+              <span className="font-semibold text-[#F0F4F8]">{customerToDelete?.name}</span>?
+              This will remove all associated data including visits and records.
+              <strong className="block mt-2 text-red-400">This action cannot be undone.</strong>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              className="border-white/10 text-[#8B9CB8] hover:text-[#F0F4F8] bg-transparent"
+              onClick={() => setShowDeleteConfirm(false)}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={deleteCustomer.isPending}
+              className="bg-red-700 hover:bg-red-800 text-white"
+            >
+              {deleteCustomer.isPending ? 'Deleting...' : 'Yes, Delete Permanently'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Assign Customer Dialog */}
       <AssignCustomerDialog
@@ -174,6 +242,7 @@ export function Customers() {
               setCustomerToAssign(c);
               setShowAssignDialog(true);
             }}
+            onDelete={isCountryHead ? handleDeleteRequest : undefined}
           />
         </TabsContent>
 
@@ -188,6 +257,7 @@ export function Customers() {
               setCustomerToAssign(c);
               setShowAssignDialog(true);
             }}
+            onDelete={isCountryHead ? handleDeleteRequest : undefined}
           />
         </TabsContent>
       </Tabs>
@@ -202,9 +272,10 @@ interface CustomersListProps {
   onViewDetails: (customer: Customer) => void;
   userRole?: string;
   onAssign: (customer: Customer) => void;
+  onDelete?: (customer: Customer) => void;
 }
 
-function CustomersList({ customers, isLoading, type, onViewDetails, userRole, onAssign }: CustomersListProps) {
+function CustomersList({ customers, isLoading, type, onViewDetails, userRole, onAssign, onDelete }: CustomersListProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -364,6 +435,20 @@ function CustomersList({ customers, isLoading, type, onViewDetails, userRole, on
                 >
                   View Details
                 </Button>
+                {onDelete && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(customer);
+                    }}
+                    className="border-red-900/50 text-red-400 hover:bg-red-900/20 hover:text-red-300"
+                    title="Delete Customer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -443,9 +528,10 @@ interface CustomerDetailsDialogProps {
   onOpenChange: (open: boolean) => void;
   customer: Customer;
   onEdit: () => void;
+  onDelete?: () => void;
 }
 
-function CustomerDetailsDialog({ open, onOpenChange, customer, onEdit }: CustomerDetailsDialogProps) {
+function CustomerDetailsDialog({ open, onOpenChange, customer, onEdit, onDelete }: CustomerDetailsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[#061A3A] border-white/10">
@@ -555,20 +641,34 @@ function CustomerDetailsDialog({ open, onOpenChange, customer, onEdit }: Custome
           )}
 
           {/* Actions */}
-          <div className="flex justify-end gap-3">
-            <Button
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              className="border-white/10 text-[#8B9CB8]"
-            >
-              Close
-            </Button>
-            <Button
-              onClick={onEdit}
-              className="bg-[#3A9EFF] hover:bg-[#2D7FCC]"
-            >
-              Edit Customer
-            </Button>
+          <div className="flex justify-between gap-3">
+            <div>
+              {onDelete && (
+                <Button
+                  onClick={onDelete}
+                  variant="outline"
+                  className="border-red-900/50 text-red-400 hover:bg-red-900/20 hover:text-red-300"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Customer
+                </Button>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                className="border-white/10 text-[#8B9CB8]"
+              >
+                Close
+              </Button>
+              <Button
+                onClick={onEdit}
+                className="bg-[#3A9EFF] hover:bg-[#2D7FCC]"
+              >
+                Edit Customer
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>

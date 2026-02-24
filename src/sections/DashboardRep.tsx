@@ -23,7 +23,10 @@ import {
   Flame,
   DollarSign,
   Package,
+  BarChart3,
+  Store,
 } from 'lucide-react';
+
 
 export function DashboardRep() {
   const { user } = useAuthStore();
@@ -35,6 +38,35 @@ export function DashboardRep() {
   });
 
   const { data: todayVisits, isLoading: visitsLoading } = useTodayVisits(user?.id);
+
+  // Shop counts: total added by this rep, and today's additions
+  const todayDateStr = useMemo(() => {
+    const t = new Date();
+    t.setHours(0, 0, 0, 0);
+    return t.toISOString();
+  }, []);
+
+  const { data: shopStats } = useQuery({
+    queryKey: ['rep-shop-stats', user?.id, todayDateStr],
+    queryFn: async () => {
+      const { data: allShops, error: e1 } = await supabase
+        .from('customers')
+        .select('id, pipeline, created_at')
+        .eq('created_by', user!.id)
+        .eq('status', 'active');
+      if (e1) throw e1;
+      const shops = allShops || [];
+      const todayShops = shops.filter(c => new Date(c.created_at) >= new Date(todayDateStr));
+      return {
+        totalShops: shops.filter(c => c.pipeline === 'recurring').length,
+        totalProjects: shops.filter(c => c.pipeline === 'one_time').length,
+        todayShops: todayShops.filter(c => c.pipeline === 'recurring').length,
+        todayProjects: todayShops.filter(c => c.pipeline === 'one_time').length,
+      };
+    },
+    enabled: !!user?.id,
+    staleTime: 2 * 60 * 1000,
+  });
 
   // Sales data - today and this month
   const { todayStr, startOfMonthStr } = useMemo(() => {
@@ -106,13 +138,23 @@ export function DashboardRep() {
             Here's your performance overview for today
           </p>
         </div>
-        <Button
-          className="bg-[#C41E3A] hover:bg-[#9B1830]"
-          onClick={() => navigate('/map')}
-        >
-          <Route className="w-4 h-4 mr-2" />
-          View Today's Route
-        </Button>
+        <div className="flex gap-3">
+          <Button
+            variant="outline"
+            className="border-[#3A9EFF] text-[#3A9EFF] hidden sm:flex"
+            onClick={() => navigate('/detailed-analytics')}
+          >
+            <BarChart3 className="w-4 h-4 mr-2" />
+            My Analytics
+          </Button>
+          <Button
+            className="bg-[#C41E3A] hover:bg-[#9B1830]"
+            onClick={() => navigate('/map')}
+          >
+            <Route className="w-4 h-4 mr-2" />
+            View Today's Route
+          </Button>
+        </div>
       </div>
 
       {/* Stats Grid */}
@@ -159,6 +201,22 @@ export function DashboardRep() {
           value={`${todayVisits?.length ? ((todaySales.total_count / todayVisits.length) * 100).toFixed(1) : 0}%`}
           subtext="Based on today's visits"
           color="#F1C40F"
+        />
+
+        {/* Shop Count Cards */}
+        <StatCard
+          icon={<Store className="w-5 h-5" />}
+          label="Total Shops Added"
+          value={shopStats?.totalShops ?? 0}
+          subtext={`+ ${shopStats?.totalProjects ?? 0} projects in portfolio`}
+          color="#2ECC71"
+        />
+        <StatCard
+          icon={<Package className="w-5 h-5" />}
+          label="Added Today"
+          value={(shopStats?.todayShops ?? 0) + (shopStats?.todayProjects ?? 0)}
+          subtext={`${shopStats?.todayShops ?? 0} shops · ${shopStats?.todayProjects ?? 0} projects`}
+          color="#D4A843"
         />
       </div>
 

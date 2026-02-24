@@ -22,7 +22,9 @@ import {
   Shield,
   UserCog,
   DollarSign,
+  BarChart3,
 } from 'lucide-react';
+
 
 interface NavItem {
   path: string;
@@ -41,6 +43,7 @@ const navItems: NavItem[] = [
   { path: '/visits', label: 'Visits', icon: <CalendarCheck className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'division_head', 'country_head'] },
   { path: '/team', label: 'Team', icon: <Users className="w-5 h-5" />, roles: ['supervisor', 'area_manager', 'regional_manager', 'division_head', 'country_head'] },
   { path: '/analytics', label: 'Analytics', icon: <TrendingUp className="w-5 h-5" />, roles: ['supervisor', 'area_manager', 'regional_manager', 'division_head', 'country_head'] },
+  { path: '/detailed-analytics', label: 'Field Analytics', icon: <BarChart3 className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'division_head', 'country_head'] },
   { path: '/territories', label: 'Territories', icon: <Shield className="w-5 h-5" />, roles: ['supervisor', 'area_manager', 'regional_manager', 'division_head', 'country_head'] },
   { path: '/admin', label: 'Admin', icon: <UserCog className="w-5 h-5" />, roles: ['country_head'] }, // Admin is likely only for country_head or explicit admins
   { path: '/settings', label: 'Settings', icon: <Settings className="w-5 h-5" />, roles: ['sales_rep', 'supervisor', 'area_manager', 'regional_manager', 'division_head', 'country_head'] },

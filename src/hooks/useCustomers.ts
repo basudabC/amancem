@@ -230,6 +230,27 @@ export const useUpdateCustomer = () => {
   });
 };
 
+// Hard delete customer (country_head only)
+export const useDeleteCustomer = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('customers')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: ['map-customers'] });
+    },
+  });
+};
+
 // Archive customer (soft delete)
 export const useArchiveCustomer = () => {
   const queryClient = useQueryClient();
