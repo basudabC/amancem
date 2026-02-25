@@ -12,59 +12,75 @@ import { useTeam } from '@/hooks/useTeam';
 import { TERRITORY_COLORS, STATUS_COLORS } from '@/lib/constants';
 import type { Customer, VisitOutcome } from '@/types';
 
-// Create circle marker SVG for recurring customers
-function createCircleMarkerSvg(color: string): string {
-  return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="30" height="38" viewBox="0 0 30 38">
-      <ellipse cx="15" cy="36" rx="6" ry="2" fill="rgba(0,0,0,0.3)"/>
-      <path d="M15 0C6.72 0 0 6.72 0 15c0 11.25 15 23 15 23s15-11.75 15-23C30 6.72 23.28 0 15 0z" fill="${color}"/>
-      <circle cx="15" cy="15" r="6.5" fill="#061A3A"/>
-      <circle cx="15" cy="15" r="2.5" fill="rgba(255,255,255,0.25)"/>
-    </svg>
-  `;
+// ── House icon for recurring shops (solid house shape) ──────
+function createHouseMarkerSvg(color: string): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="40" viewBox="0 0 36 40">
+    <!-- shadow -->
+    <ellipse cx="18" cy="38" rx="8" ry="2.5" fill="rgba(0,0,0,0.25)"/>
+    <!-- roof -->
+    <polygon points="18,2 34,18 2,18" fill="${color}" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
+    <!-- walls -->
+    <rect x="5" y="17" width="26" height="18" rx="1" fill="${color}" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+    <!-- door -->
+    <rect x="14" y="26" width="8" height="9" rx="1.5" fill="rgba(0,0,0,0.45)"/>
+    <circle cx="21" cy="31" r="1" fill="rgba(255,255,255,0.5)"/>
+    <!-- window left -->
+    <rect x="7" y="21" width="6" height="5" rx="1" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+    <!-- window right -->
+    <rect x="23" y="21" width="6" height="5" rx="1" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+    <!-- highlight on roof -->
+    <polygon points="18,4 32,18 18,18" fill="rgba(255,255,255,0.08)"/>
+  </svg>`;
 }
 
-// Create diamond marker SVG for project customers
-function createDiamondMarkerSvg(color: string): string {
-  return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="30" height="38" viewBox="0 0 30 38">
-      <ellipse cx="15" cy="36" rx="5" ry="2" fill="rgba(0,0,0,0.3)"/>
-      <path d="M15 0 L28 14 L15 28 L2 14 Z" fill="${color}"/>
-      <path d="M11 26 L15 35 L19 26" fill="${color}"/>
-      <path d="M15 5 L23 14 L15 23 L7 14 Z" fill="#061A3A"/>
-      <path d="M15 9 L19 14 L15 19 L11 14 Z" fill="rgba(255,255,255,0.15)"/>
-    </svg>
-  `;
+// ── Building icon for project customers ─────────────────────
+function createBuildingMarkerSvg(color: string): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="40" viewBox="0 0 36 40">
+    <!-- shadow -->
+    <ellipse cx="18" cy="38" rx="8" ry="2.5" fill="rgba(0,0,0,0.25)"/>
+    <!-- main building -->
+    <rect x="6" y="10" width="24" height="25" rx="1.5" fill="${color}" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
+    <!-- roof line -->
+    <rect x="6" y="10" width="24" height="4" rx="1.5" fill="rgba(0,0,0,0.2)"/>
+    <!-- crane arm -->
+    <line x1="26" y1="2" x2="26" y2="12" stroke="rgba(255,255,255,0.7)" stroke-width="1.5"/>
+    <line x1="18" y1="3" x2="32" y2="3" stroke="rgba(255,255,255,0.7)" stroke-width="1.5"/>
+    <line x1="32" y1="3" x2="32" y2="8" stroke="rgba(255,255,255,0.5)" stroke-width="1"/>
+    <!-- windows grid -->
+    <rect x="9" y="16" width="5" height="4" rx="0.5" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+    <rect x="16" y="16" width="5" height="4" rx="0.5" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+    <rect x="23" y="16" width="5" height="4" rx="0.5" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+    <rect x="9" y="22" width="5" height="4" rx="0.5" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+    <rect x="23" y="22" width="5" height="4" rx="0.5" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/>
+    <!-- central door -->
+    <rect x="14" y="27" width="8" height="8" rx="1" fill="rgba(0,0,0,0.4)"/>
+  </svg>`;
 }
 
-// Get marker color based on customer status
-// User requested "red color" for all pins.
-// We will use shades of Red to maintain some distinction while adhering to the request.
-const RED_COLORS = {
-  active: '#FF0000', // Bright Red
-  inactive: '#8B0000', // Dark Red
-  default: '#D32F2F', // Standard Red
-};
-
-function getMarkerColor(customer: Customer): string {
-  // Use Red for everything as requested, maybe vary slightly by status if needed
-  // For now, uniformly Red or slightly varied
-  if (customer.status === 'archived') return '#555555'; // Exception for archived
-  return RED_COLORS.active;
+// ── Pick territory stroke color for icon ─────────────────────
+function getTerritoryColor(customer: Customer): string {
+  if (customer.status === 'archived') return '#6B7A8D';
+  const colorKey = (customer as any).territory_color_key as string | undefined;
+  if (colorKey && TERRITORY_COLORS[colorKey as keyof typeof TERRITORY_COLORS]) {
+    return TERRITORY_COLORS[colorKey as keyof typeof TERRITORY_COLORS].stroke;
+  }
+  // Fallback: deterministic color from territory_id
+  const fallbacks = ['#3A9EFF', '#C41E3A', '#2ECC71', '#9B6BFF', '#D4A843', '#FF7C3A', '#2DD4BF', '#E74C5E'];
+  const hash = (customer.territory_id || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  return fallbacks[hash % fallbacks.length];
 }
 
-// Create marker icon
+// ── Create the marker icon object ────────────────────────────
 function createMarkerIcon(customer: Customer): google.maps.Icon {
-  const color = getMarkerColor(customer);
+  const color = getTerritoryColor(customer);
   const svg = customer.pipeline === 'recurring'
-    ? createCircleMarkerSvg(color)
-    : createDiamondMarkerSvg(color);
-
+    ? createHouseMarkerSvg(color)
+    : createBuildingMarkerSvg(color);
   return {
     url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
-    scaledSize: new google.maps.Size(32, 42), // Slightly larger for visibility
-    anchor: new google.maps.Point(16, 42),
-    labelOrigin: new google.maps.Point(16, -10), // Position label above the pin
+    scaledSize: new google.maps.Size(36, 40),
+    anchor: new google.maps.Point(18, 38),
+    labelOrigin: new google.maps.Point(18, -6),
   };
 }
 
@@ -128,10 +144,10 @@ export function CustomerMarkers({ onEdit }: { onEdit?: (customer: Customer) => v
 
       if (hasPoints) {
         map.fitBounds(bounds);
-
-        // Prevent zooming in too far if only one point
+        // Prevent zooming in too far if only one or few points
         const listener = google.maps.event.addListenerOnce(map, 'bounds_changed', () => {
-          if (map.getZoom()! > 16) map.setZoom(16);
+          if (map.getZoom()! > 14) map.setZoom(14);
+          if (map.getZoom()! < 9) map.setZoom(9);
         });
         return () => google.maps.event.removeListener(listener);
       }

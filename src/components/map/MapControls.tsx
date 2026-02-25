@@ -14,7 +14,10 @@ import {
   Archive,
   ChevronDown,
   ChevronUp,
-  Map as MapIcon
+  Map as MapIcon,
+  Layers,
+  LayoutGrid,
+  Globe2,
 } from 'lucide-react';
 
 export function MapControls() {
@@ -28,6 +31,9 @@ export function MapControls() {
     showHeatmap,
     showLiveReps,
     territories,
+    showTerritoryBoundaries,
+    showAreaBoundaries,
+    showRegionBoundaries,
     toggleRecurring,
     toggleProjects,
     toggleArchived,
@@ -36,6 +42,9 @@ export function MapControls() {
     toggleLiveReps,
     selectAllTerritories,
     deselectAllTerritories,
+    toggleTerritoryBoundaries,
+    toggleAreaBoundaries,
+    toggleRegionBoundaries,
   } = useMapStore();
 
   // Only management can see live reps
@@ -148,6 +157,39 @@ export function MapControls() {
                     </button>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="h-px bg-white/10" />
+
+            {/* Boundary Layers */}
+            <div className="space-y-2">
+              <span className="text-xs font-medium text-[#8B9CB8] uppercase tracking-wider">
+                Boundary Lines
+              </span>
+              <div className="space-y-1.5">
+                <FilterToggle
+                  active={showTerritoryBoundaries}
+                  onClick={toggleTerritoryBoundaries}
+                  icon={<Layers className="w-3.5 h-3.5" />}
+                  label="Territory Boundaries"
+                  color="#3A9EFF"
+                />
+                <FilterToggle
+                  active={showAreaBoundaries}
+                  onClick={toggleAreaBoundaries}
+                  icon={<LayoutGrid className="w-3.5 h-3.5" />}
+                  label="Area Boundaries"
+                  color="#FF6B6B"
+                />
+                <FilterToggle
+                  active={showRegionBoundaries}
+                  onClick={toggleRegionBoundaries}
+                  icon={<Globe2 className="w-3.5 h-3.5" />}
+                  label="Region Boundaries"
+                  color="#E03131"
+                />
               </div>
             </div>
 

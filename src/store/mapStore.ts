@@ -28,6 +28,11 @@ interface MapState {
   showHeatmap: boolean;
   showLiveReps: boolean;
 
+  // Boundary Layer Toggles
+  showTerritoryBoundaries: boolean;
+  showAreaBoundaries: boolean;
+  showRegionBoundaries: boolean;
+
   // Loading states
   isLoadingCustomers: boolean;
   isLoadingTerritories: boolean;
@@ -51,6 +56,11 @@ interface MapState {
   selectAllTerritories: () => void;
   deselectAllTerritories: () => void;
 
+  // Boundary layer toggles
+  toggleTerritoryBoundaries: () => void;
+  toggleAreaBoundaries: () => void;
+  toggleRegionBoundaries: () => void;
+
   // Apply filters
   applyFilters: () => void;
 
@@ -58,6 +68,7 @@ interface MapState {
   setLoadingCustomers: (loading: boolean) => void;
   setLoadingTerritories: (loading: boolean) => void;
 }
+
 
 export const useMapStore = create<MapState>((set, get) => ({
   // Initial filter state
@@ -67,6 +78,11 @@ export const useMapStore = create<MapState>((set, get) => ({
   selectedTerritories: [],
   showHeatmap: false,
   showLiveReps: false,
+
+  // Boundary layers: territory on by default, area/region off
+  showTerritoryBoundaries: true,
+  showAreaBoundaries: false,
+  showRegionBoundaries: false,
 
   // Map instance
   map: null,
@@ -134,6 +150,11 @@ export const useMapStore = create<MapState>((set, get) => ({
 
   toggleHeatmap: () => set((state) => ({ showHeatmap: !state.showHeatmap })),
   toggleLiveReps: () => set((state) => ({ showLiveReps: !state.showLiveReps })),
+
+  // Boundary layer toggles
+  toggleTerritoryBoundaries: () => set((state) => ({ showTerritoryBoundaries: !state.showTerritoryBoundaries })),
+  toggleAreaBoundaries: () => set((state) => ({ showAreaBoundaries: !state.showAreaBoundaries })),
+  toggleRegionBoundaries: () => set((state) => ({ showRegionBoundaries: !state.showRegionBoundaries })),
 
   selectAllTerritories: () => {
     const { territories } = get();

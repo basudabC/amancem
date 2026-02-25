@@ -86,7 +86,7 @@ export const STATUS_COLORS = {
 
 export const MAP_CONFIG = {
   defaultCenter: { lat: 23.8103, lng: 90.4125 }, // Dhaka, Bangladesh
-  defaultZoom: 10, // Closer view of Dhaka and surrounding areas (40% more zoom)
+  defaultZoom: 9, // Wide view showing all territories
   territoryZoom: 10, // Division level
   districtZoom: 13, // District/Upazila level
   checkInRadius: 200, // meters
