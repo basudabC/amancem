@@ -57,17 +57,31 @@ function createBuildingMarkerSvg(color: string): string {
   </svg>`;
 }
 
-// ── Pick territory stroke color for icon ─────────────────────
+// ── Deterministic unique HSL color from any string ID ────────
+// Uses golden-ratio hue spacing so every territory gets a visually
+// distinct color, no matter how many territories exist.
+function hashStringToHue(str: string): number {
+  // djb2 hash → spread over 360°
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 33) ^ str.charCodeAt(i);
+  }
+  // Golden angle in degrees ≈ 137.508
+  return Math.abs(hash * 137.508) % 360;
+}
+
+// ── Pick territory stroke color for icon ──────────────────────
 function getTerritoryColor(customer: Customer): string {
   if (customer.status === 'archived') return '#6B7A8D';
+  // 1. Try named territory color key from TERRITORY_COLORS
   const colorKey = (customer as any).territory_color_key as string | undefined;
   if (colorKey && TERRITORY_COLORS[colorKey as keyof typeof TERRITORY_COLORS]) {
     return TERRITORY_COLORS[colorKey as keyof typeof TERRITORY_COLORS].stroke;
   }
-  // Fallback: deterministic color from territory_id
-  const fallbacks = ['#3A9EFF', '#C41E3A', '#2ECC71', '#9B6BFF', '#D4A843', '#FF7C3A', '#2DD4BF', '#E74C5E'];
-  const hash = (customer.territory_id || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-  return fallbacks[hash % fallbacks.length];
+  // 2. Fallback: generate unique color from territory.id using golden-ratio hue
+  const id = customer.territory_id || customer.id || 'unknown';
+  const hue = hashStringToHue(id);
+  return `hsl(${hue.toFixed(0)}, 80%, 58%)`;
 }
 
 // ── Create the marker icon object ────────────────────────────
@@ -168,12 +182,6 @@ export function CustomerMarkers({ onEdit }: { onEdit?: (customer: Customer) => v
             position={{ lat, lng }}
             icon={createMarkerIcon(customer)}
             title={customer.name}
-            label={{
-              text: customer.name,
-              color: '#FFFFFF', // White text as requested
-              fontSize: '11px',
-              fontWeight: 'bold',
-            }}
             onClick={() => handleMarkerClick(customer)}
             zIndex={10}
           />

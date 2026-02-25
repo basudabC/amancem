@@ -11,6 +11,29 @@ import { useMapStore } from '@/store/mapStore';
 import { TERRITORY_COLORS } from '@/lib/constants';
 import type { Territory } from '@/types';
 
+// ── Unique color per territory ID (golden-ratio HSL) ─────────
+function hashStringToHue(str: string): number {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 33) ^ str.charCodeAt(i);
+  }
+  return Math.abs(hash * 137.508) % 360;
+}
+
+function getTerritoryUniqueColor(territory: Territory): { fill: string; stroke: string } {
+  // If the territory has a named color_key, use the brand palette
+  const ck = territory.color_key as string | undefined;
+  if (ck && TERRITORY_COLORS[ck as keyof typeof TERRITORY_COLORS]) {
+    return TERRITORY_COLORS[ck as keyof typeof TERRITORY_COLORS];
+  }
+  // Otherwise: generate unique hue from territory.id
+  const hue = hashStringToHue(territory.id || territory.name);
+  return {
+    stroke: `hsl(${hue.toFixed(0)}, 85%, 58%)`,
+    fill: `hsl(${hue.toFixed(0)}, 70%, 50%)`,
+  };
+}
+
 // ─── Color palettes for area and region layers ────────────────
 const AREA_COLORS = [
   '#FF6B6B', '#FFA94D', '#FFD43B', '#69DB7C',
@@ -105,7 +128,7 @@ export function TerritoryPolygons() {
     <>
       {/* ── Layer 1: Territory boundaries (thin, unique per-territory color) ── */}
       {showTerritoryBoundaries && territoryPolygons.map(({ territory, paths }) => {
-        const colors = TERRITORY_COLORS[territory.color_key as string] || TERRITORY_COLORS.territory_a;
+        const colors = getTerritoryUniqueColor(territory);
         return (
           <Polygon
             key={`terr-${territory.id}`}
