@@ -70,18 +70,14 @@ function hashStringToHue(str: string): number {
   return Math.abs(hash * 137.508) % 360;
 }
 
-// ── Pick territory stroke color for icon ──────────────────────
+// ── Pick unique territory color for icon ────────────────────
+// Always uses golden-ratio HSL — supports unlimited territories
 function getTerritoryColor(customer: Customer): string {
   if (customer.status === 'archived') return '#6B7A8D';
-  // 1. Try named territory color key from TERRITORY_COLORS
-  const colorKey = (customer as any).territory_color_key as string | undefined;
-  if (colorKey && TERRITORY_COLORS[colorKey as keyof typeof TERRITORY_COLORS]) {
-    return TERRITORY_COLORS[colorKey as keyof typeof TERRITORY_COLORS].stroke;
-  }
-  // 2. Fallback: generate unique color from territory.id using golden-ratio hue
+  // Generate unique hue from territory_id (falls back to customer id)
   const id = customer.territory_id || customer.id || 'unknown';
   const hue = hashStringToHue(id);
-  return `hsl(${hue.toFixed(0)}, 80%, 58%)`;
+  return `hsl(${hue.toFixed(0)}, 80%, 62%)`;
 }
 
 // ── Create the marker icon object ────────────────────────────

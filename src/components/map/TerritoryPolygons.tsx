@@ -21,18 +21,15 @@ function hashStringToHue(str: string): number {
 }
 
 function getTerritoryUniqueColor(territory: Territory): { fill: string; stroke: string } {
-  // If the territory has a named color_key, use the brand palette
-  const ck = territory.color_key as string | undefined;
-  if (ck && TERRITORY_COLORS[ck as keyof typeof TERRITORY_COLORS]) {
-    return TERRITORY_COLORS[ck as keyof typeof TERRITORY_COLORS];
-  }
-  // Otherwise: generate unique hue from territory.id
+  // Always generate unique hue from territory.id — ignores the 8-slot color_key palette
+  // Supports unlimited territories with no color collisions
   const hue = hashStringToHue(territory.id || territory.name);
   return {
-    stroke: `hsl(${hue.toFixed(0)}, 85%, 58%)`,
+    stroke: `hsl(${hue.toFixed(0)}, 85%, 62%)`,
     fill: `hsl(${hue.toFixed(0)}, 70%, 50%)`,
   };
 }
+
 
 // ─── Color palettes for area and region layers ────────────────
 const AREA_COLORS = [
