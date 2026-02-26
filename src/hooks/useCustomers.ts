@@ -107,6 +107,63 @@ export const useCustomers = (filters?: {
   });
 };
 
+// Fetch customer stats (exact counts, bypasses 1000 limit)
+export const useCustomerStats = (filters?: {
+  status?: 'active' | 'archived';
+  territoryId?: string;
+  territoryIds?: string[];
+  salesRepId?: string;
+}) => {
+  return useQuery({
+    queryKey: ['customer-stats', filters],
+    queryFn: async () => {
+      let qTotal = supabase.from('customers').select('*', { count: 'exact', head: true });
+      let qRecurring = supabase.from('customers').select('*', { count: 'exact', head: true }).eq('pipeline', 'recurring');
+      let qProjects = supabase.from('customers').select('*', { count: 'exact', head: true }).eq('pipeline', 'one_time');
+
+      if (filters?.status) {
+        qTotal = qTotal.eq('status', filters.status);
+        qRecurring = qRecurring.eq('status', filters.status);
+        qProjects = qProjects.eq('status', filters.status);
+      }
+
+      if (filters?.territoryId) {
+        qTotal = qTotal.eq('territory_id', filters.territoryId);
+        qRecurring = qRecurring.eq('territory_id', filters.territoryId);
+        qProjects = qProjects.eq('territory_id', filters.territoryId);
+      }
+
+      if (filters?.territoryIds && filters.territoryIds.length > 0) {
+        qTotal = qTotal.in('territory_id', filters.territoryIds);
+        qRecurring = qRecurring.in('territory_id', filters.territoryIds);
+        qProjects = qProjects.in('territory_id', filters.territoryIds);
+      }
+
+      if (filters?.salesRepId) {
+        qTotal = qTotal.eq('sales_rep_id', filters.salesRepId);
+        qRecurring = qRecurring.eq('sales_rep_id', filters.salesRepId);
+        qProjects = qProjects.eq('sales_rep_id', filters.salesRepId);
+      }
+
+      const [resTotal, resRecurring, resProjects] = await Promise.all([
+        qTotal,
+        qRecurring,
+        qProjects
+      ]);
+
+      if (resTotal.error) throw resTotal.error;
+
+      return {
+        total: resTotal.count || 0,
+        recurring: resRecurring.count || 0,
+        projects: resProjects.count || 0,
+      };
+    },
+    staleTime: 2 * 60 * 1000,
+  });
+};
+
+
 // Fetch single customer
 export const useCustomer = (id: string) => {
   return useQuery({

@@ -2,7 +2,7 @@
 // AMAN CEMENT CRM — Management Dashboard
 // ============================================================
 
-import { useCustomers } from '@/hooks/useCustomers';
+import { useCustomerStats } from '@/hooks/useCustomers';
 import { useTerritories } from '@/hooks/useTerritories';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,13 +22,13 @@ import {
 } from 'lucide-react';
 
 export function DashboardManagement() {
-  const { data: customers } = useCustomers({ status: 'active' });
+  const { data: customerStats } = useCustomerStats({ status: 'active' });
   const { data: territories } = useTerritories();
   const navigate = useNavigate();
 
-  const totalCustomers = customers?.length || 0;
-  const recurringCustomers = customers?.filter(c => c.pipeline === 'recurring').length || 0;
-  const projectCustomers = customers?.filter(c => c.pipeline === 'one_time').length || 0;
+  const totalCustomers = customerStats?.total || 0;
+  const recurringCustomers = customerStats?.recurring || 0;
+  const projectCustomers = customerStats?.projects || 0;
   const totalTerritories = territories?.length || 0;
 
   // Mock conversion funnel data
@@ -225,8 +225,8 @@ export function DashboardManagement() {
                 <div
                   key={index}
                   className={`flex items-start gap-3 p-3 rounded-lg ${alert.severity === 'critical'
-                      ? 'bg-[#E74C5E]/10 border border-[#E74C5E]/30'
-                      : 'bg-[#FF7C3A]/10 border border-[#FF7C3A]/30'
+                    ? 'bg-[#E74C5E]/10 border border-[#E74C5E]/30'
+                    : 'bg-[#FF7C3A]/10 border border-[#FF7C3A]/30'
                     }`}
                 >
                   <AlertTriangle

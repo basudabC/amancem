@@ -6,7 +6,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useTeam } from '@/hooks/useTeam';
 import { useConversions } from '@/hooks/useConversions';
 import { useTodayVisits } from '@/hooks/useVisits';
-import { useCustomers } from '@/hooks/useCustomers';
+import { useCustomers, useCustomerStats } from '@/hooks/useCustomers';
 import { useUserTerritories } from '@/hooks/useTerritories';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -72,6 +72,11 @@ export function DashboardSupervisor() {
     uniqueTerritoryIds
   );
 
+  const { data: customerStats, isLoading: statsLoading } = useCustomerStats({
+    status: 'active',
+    territoryIds: uniqueTerritoryIds.length > 0 ? uniqueTerritoryIds : undefined,
+  });
+
   const { data: customers, isLoading: customersLoading } = useCustomers({ status: 'active' });
 
   // Fetch real team activity
@@ -85,6 +90,7 @@ export function DashboardSupervisor() {
   });
 
   const totalTerritories = territories.length;
+  const totalCustomers = customerStats?.total || 0;
 
   // Calculate real team performance
   const teamPerformance = teamMembers.map(member => {
@@ -154,10 +160,10 @@ export function DashboardSupervisor() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          icon={<Users className="w-5 h-5" />}
-          label="Team Members"
-          value={teamMembers.length}
-          subtext="Active sales reps"
+          icon={<Store className="w-5 h-5" />}
+          label="Total Customers"
+          value={totalCustomers}
+          subtext="In supervised territories"
           color="#3A9EFF"
         />
         <StatCard
