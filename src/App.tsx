@@ -21,6 +21,7 @@ import { DetailedAnalytics } from '@/pages/DetailedAnalytics';
 import { Territories } from '@/pages/Territories';
 import { Admin } from '@/pages/Admin';
 import { Settings } from '@/pages/Settings';
+import { MarketIntelligence } from '@/pages/MarketIntelligence';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { env } from '@/lib/env-validator';
 import { logger } from '@/lib/logger';
@@ -219,6 +220,14 @@ function AppContent() {
         element={
           <ProtectedRoute>
             <Settings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/market-intelligence"
+        element={
+          <ProtectedRoute>
+            <MarketIntelligence />
           </ProtectedRoute>
         }
       />

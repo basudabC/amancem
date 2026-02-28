@@ -483,16 +483,34 @@ export function Team() {
       if (memberIds.length === 0) return {};
 
       // Get visit counts
-      const { data: visits } = await supabase
-        .from('visits')
-        .select('sales_rep_id, status')
-        .in('sales_rep_id', memberIds);
+      const visits: any[] = [];
+      let vPage = 0;
+      while (true) {
+        const { data } = await supabase
+          .from('visits')
+          .select('sales_rep_id, status')
+          .in('sales_rep_id', memberIds)
+          .range(vPage * 1000, (vPage + 1) * 1000 - 1);
+        if (!data || data.length === 0) break;
+        visits.push(...data);
+        if (data.length < 1000) break;
+        vPage++;
+      }
 
       // Get customer counts
-      const { data: customers } = await supabase
-        .from('customers')
-        .select('assigned_to, is_converted')
-        .in('assigned_to', memberIds);
+      const customers: any[] = [];
+      let cPage = 0;
+      while (true) {
+        const { data } = await supabase
+          .from('customers')
+          .select('assigned_to, is_converted')
+          .in('assigned_to', memberIds)
+          .range(cPage * 1000, (cPage + 1) * 1000 - 1);
+        if (!data || data.length === 0) break;
+        customers.push(...data);
+        if (data.length < 1000) break;
+        cPage++;
+      }
 
       const stats: Record<string, { visits: number; customers: number; conversions: number }> = {};
 

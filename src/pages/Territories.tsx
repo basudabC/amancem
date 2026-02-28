@@ -535,15 +535,33 @@ export function Territories() {
       const territoryIds = territories.map(t => t.id);
       if (territoryIds.length === 0) return {};
 
-      const { data: customers } = await supabase
-        .from('customers')
-        .select('territory_id, is_converted')
-        .in('territory_id', territoryIds);
+      const customers: any[] = [];
+      let cPage = 0;
+      while (true) {
+        const { data } = await supabase
+          .from('customers')
+          .select('territory_id, is_converted')
+          .in('territory_id', territoryIds)
+          .range(cPage * 1000, (cPage + 1) * 1000 - 1);
+        if (!data || data.length === 0) break;
+        customers.push(...data);
+        if (data.length < 1000) break;
+        cPage++;
+      }
 
-      const { data: visits } = await supabase
-        .from('visits')
-        .select('customer_id, customers!inner(territory_id)')
-        .in('customers.territory_id', territoryIds);
+      const visits: any[] = [];
+      let vPage = 0;
+      while (true) {
+        const { data } = await supabase
+          .from('visits')
+          .select('customer_id, customers!inner(territory_id)')
+          .in('customers.territory_id', territoryIds)
+          .range(vPage * 1000, (vPage + 1) * 1000 - 1);
+        if (!data || data.length === 0) break;
+        visits.push(...data);
+        if (data.length < 1000) break;
+        vPage++;
+      }
 
       const { data: reps } = await supabase
         .from('profiles')

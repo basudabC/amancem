@@ -18,7 +18,8 @@ import {
   Flame,
   AlertTriangle,
   BarChart3,
-  MapPin
+  MapPin,
+  PieChart as PieChartIcon
 } from 'lucide-react';
 
 export function DashboardManagement() {
@@ -73,6 +74,10 @@ export function DashboardManagement() {
           >
             <Map className="w-4 h-4 mr-2" />
             View Full Map
+          </Button>
+          <Button className="bg-[#3A9EFF] hover:bg-[#2a7bca] border-none" onClick={() => navigate('/market-intelligence')}>
+            <PieChartIcon className="w-4 h-4 mr-2" />
+            Market Intelligence
           </Button>
           <Button className="bg-[#C41E3A] hover:bg-[#9B1830]" onClick={() => navigate('/detailed-analytics')}>
             <BarChart3 className="w-4 h-4 mr-2" />

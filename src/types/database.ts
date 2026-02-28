@@ -111,6 +111,13 @@ export interface Database {
           territory_id: string;
           sales_rep_id: string;
           status: 'active' | 'archived';
+          customer_type: 'retailer' | 'dealer' | 'project';
+          monthly_volume_target: number;
+          our_brand_volume: number;
+          primary_brand: string | null;
+          brands_stocked: Json;
+          project_status: string | null;
+          dominance_reason: string | null;
           pipeline_data: Json;
           last_outcome: string | null;
           created_at: string;
@@ -128,6 +135,13 @@ export interface Database {
           territory_id: string;
           sales_rep_id: string;
           status?: 'active' | 'archived';
+          customer_type?: 'retailer' | 'dealer' | 'project';
+          monthly_volume_target?: number;
+          our_brand_volume?: number;
+          primary_brand?: string | null;
+          brands_stocked?: Json;
+          project_status?: string | null;
+          dominance_reason?: string | null;
           pipeline_data: Json;
           last_outcome?: string | null;
           created_at?: string;
@@ -145,6 +159,13 @@ export interface Database {
           territory_id?: string;
           sales_rep_id?: string;
           status?: 'active' | 'archived';
+          customer_type?: 'retailer' | 'dealer' | 'project';
+          monthly_volume_target?: number;
+          our_brand_volume?: number;
+          primary_brand?: string | null;
+          brands_stocked?: Json;
+          project_status?: string | null;
+          dominance_reason?: string | null;
           pipeline_data?: Json;
           last_outcome?: string | null;
           created_at?: string;
@@ -163,6 +184,7 @@ export interface Database {
           note: string | null;
           voice_memo_url: string | null;
           completed: boolean;
+          market_intel: Json;
           created_at: string;
         };
         Insert: {
@@ -176,6 +198,7 @@ export interface Database {
           note?: string | null;
           voice_memo_url?: string | null;
           completed?: boolean;
+          market_intel?: Json;
           created_at?: string;
         };
         Update: {

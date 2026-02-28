@@ -504,6 +504,8 @@ function UsersManagement() {
 
       // Upsert profile with role and additional info (create if doesn't exist, update if it does)
       const divisionName = divisions.find((d: any) => d.id === userData.division_id)?.name;
+      const regionName = regions.find((r: any) => r.id === userData.region_id)?.name;
+      const areaName = areas.find((a: any) => a.id === userData.area_id)?.name;
 
       const { error: profileError } = await supabase
         .from('profiles')
@@ -515,9 +517,9 @@ function UsersManagement() {
           role: userData.role,
           phone: userData.phone,
           reports_to: userData.reports_to || null, // Manager/Supervisor ID
-          region_id: userData.region_id || null,
-          area_id: userData.area_id || null,
-          territory_id: userData.territory_id || null,
+          region: regionName || null,
+          area: areaName || null,
+          territory_ids: userData.territory_id ? [userData.territory_id] : null,
           division: divisionName || null,
           is_active: true,
         }, {

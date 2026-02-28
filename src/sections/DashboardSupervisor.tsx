@@ -40,12 +40,21 @@ export function DashboardSupervisor() {
     queryFn: async () => {
       if (!teamMembers.length) return {};
       const ids = teamMembers.map(m => m.id);
-      const { data, error } = await supabase
-        .from('customers')
-        .select('created_by, pipeline')
-        .in('created_by', ids)
-        .eq('status', 'active');
-      if (error) throw error;
+      const data: any[] = [];
+      let page = 0;
+      while (true) {
+        const { data: chunk, error } = await supabase
+          .from('customers')
+          .select('created_by, pipeline')
+          .in('created_by', ids)
+          .eq('status', 'active')
+          .range(page * 1000, (page + 1) * 1000 - 1);
+        if (error) throw error;
+        if (!chunk || chunk.length === 0) break;
+        data.push(...chunk);
+        if (chunk.length < 1000) break;
+        page++;
+      }
       const map: Record<string, { shops: number; projects: number }> = {};
       for (const c of (data || [])) {
         if (!map[c.created_by]) map[c.created_by] = { shops: 0, projects: 0 };

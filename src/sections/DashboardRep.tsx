@@ -49,12 +49,21 @@ export function DashboardRep() {
   const { data: shopStats } = useQuery({
     queryKey: ['rep-shop-stats', user?.id, todayDateStr],
     queryFn: async () => {
-      const { data: allShops, error: e1 } = await supabase
-        .from('customers')
-        .select('id, pipeline, created_at')
-        .eq('created_by', user!.id)
-        .eq('status', 'active');
-      if (e1) throw e1;
+      const allShops: any[] = [];
+      let page = 0;
+      while (true) {
+        const { data: chunk, error: e1 } = await supabase
+          .from('customers')
+          .select('id, pipeline, created_at')
+          .eq('created_by', user!.id)
+          .eq('status', 'active')
+          .range(page * 1000, (page + 1) * 1000 - 1);
+        if (e1) throw e1;
+        if (!chunk || chunk.length === 0) break;
+        allShops.push(...chunk);
+        if (chunk.length < 1000) break;
+        page++;
+      }
       const shops = allShops || [];
       const todayShops = shops.filter(c => new Date(c.created_at) >= new Date(todayDateStr));
       return {
