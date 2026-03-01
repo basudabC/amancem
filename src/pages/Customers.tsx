@@ -4,7 +4,9 @@
 
 import { useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
-import { useCustomers, useDeleteCustomer } from '@/hooks/useCustomers';
+import { useCustomersInfinite, useDeleteCustomer } from '@/hooks/useCustomers';
+import { useDebounce } from '@/hooks/useDebounce';
+import { useInView } from 'react-intersection-observer';
 import { useCustomerRecentSales } from '@/hooks/useConversions';
 import { CustomerForm } from '@/components/CustomerForm';
 import { Button } from '@/components/ui/button';
@@ -59,19 +61,33 @@ export function Customers() {
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const { data: customers, isLoading, refetch } = useCustomers({
+  // Infinite Scroll & Debounce Search logic
+  const debouncedSearch = useDebounce(searchQuery, 500);
+  const { ref: observerRef, inView } = useInView();
+
+  const {
+    data: customerPages,
+    isLoading,
+    isFetchingNextPage,
+    fetchNextPage,
+    hasNextPage,
+    refetch,
+  } = useCustomersInfinite({
     salesRepId: user?.role === 'sales_rep' ? user.id : undefined,
     pipeline: activeTab as 'recurring' | 'one_time',
     status: 'active',
+    searchQuery: debouncedSearch.length >= 2 ? debouncedSearch : undefined,
   });
 
   const deleteCustomer = useDeleteCustomer();
 
-  const filteredCustomers = customers?.filter((customer: Customer) =>
-    customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    customer.address?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    customer.phone?.includes(searchQuery)
-  );
+  // Flatten the pages array correctly
+  const filteredCustomers = customerPages?.pages.flatMap((page) => page) || [];
+
+  // Trigger paginated fetch when bottom is visible
+  if (inView && hasNextPage && !isFetchingNextPage) {
+    fetchNextPage();
+  }
 
   const handleViewDetails = (customer: Customer) => {
     setSelectedCustomer(customer);
@@ -243,6 +259,9 @@ export function Customers() {
               setShowAssignDialog(true);
             }}
             onDelete={isCountryHead ? handleDeleteRequest : undefined}
+            isFetchingNextPage={isFetchingNextPage}
+            hasNextPage={hasNextPage}
+            observerRef={observerRef}
           />
         </TabsContent>
 
@@ -258,6 +277,9 @@ export function Customers() {
               setShowAssignDialog(true);
             }}
             onDelete={isCountryHead ? handleDeleteRequest : undefined}
+            isFetchingNextPage={isFetchingNextPage}
+            hasNextPage={hasNextPage}
+            observerRef={observerRef}
           />
         </TabsContent>
       </Tabs>
@@ -273,10 +295,13 @@ interface CustomersListProps {
   userRole?: string;
   onAssign: (customer: Customer) => void;
   onDelete?: (customer: Customer) => void;
+  isFetchingNextPage?: boolean;
+  hasNextPage?: boolean;
+  observerRef?: (node?: Element | null) => void;
 }
 
-function CustomersList({ customers, isLoading, type, onViewDetails, userRole, onAssign, onDelete }: CustomersListProps) {
-  if (isLoading) {
+function CustomersList({ customers, isLoading, type, onViewDetails, userRole, onAssign, onDelete, isFetchingNextPage, hasNextPage, observerRef }: CustomersListProps) {
+  if (isLoading && !customers?.length) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#C41E3A]" />
@@ -301,11 +326,10 @@ function CustomersList({ customers, isLoading, type, onViewDetails, userRole, on
       </Card>
     );
   }
-
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {customers.map((customer: Customer) => {
-        return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {customers.map((customer: Customer) => (
           <Card
             key={customer.id}
             className="bg-[#0A2A5C] border-white/10 cursor-pointer hover:border-[#3A9EFF]/50 transition-colors"
@@ -349,7 +373,6 @@ function CustomersList({ customers, isLoading, type, onViewDetails, userRole, on
                     {customer.sales_rep_name ? (
                       <>
                         {customer.sales_rep_name}
-                        {/* Allow re-assign if manager */}
                         {userRole !== 'sales_rep' && (
                           <button
                             onClick={(e) => {
@@ -371,7 +394,7 @@ function CustomersList({ customers, isLoading, type, onViewDetails, userRole, on
                             variant="ghost"
                             size="sm"
                             onClick={(e) => {
-                              e.stopPropagation(); // Prevent card click
+                              e.stopPropagation();
                               onAssign(customer);
                             }}
                             className="h-5 px-2 text-xs bg-[#3A9EFF]/20 text-[#3A9EFF] hover:bg-[#3A9EFF]/30 hover:text-white"
@@ -385,9 +408,7 @@ function CustomersList({ customers, isLoading, type, onViewDetails, userRole, on
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <Phone className="w-4 h-4 text-[#8B9CB8]" />
-                  <span className="text-[#8B9CB8]">
-                    {customer.phone || 'N/A'}
-                  </span>
+                  <span className="text-[#8B9CB8]">{customer.phone || 'N/A'}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <MapPin className="w-4 h-4 text-[#8B9CB8]" />
@@ -397,7 +418,6 @@ function CustomersList({ customers, isLoading, type, onViewDetails, userRole, on
                       : 'No GPS data'}
                   </span>
                 </div>
-
                 {type === 'recurring' ? (
                   <div className="pt-2 mt-2 border-t border-white/10">
                     <div className="flex items-center justify-between">
@@ -421,7 +441,6 @@ function CustomersList({ customers, isLoading, type, onViewDetails, userRole, on
                     </div>
                   </div>
                 )}
-
                 {/* Last 30 Days Sales */}
                 <CustomerSalesInfo customerId={customer.id} />
               </div>
@@ -452,28 +471,27 @@ function CustomersList({ customers, isLoading, type, onViewDetails, userRole, on
               </div>
             </CardContent>
           </Card>
-        );
-      })}
+        ))}
+      </div>
+
+      {observerRef && (
+        <div ref={observerRef} className="py-4 text-center text-[#8B9CB8]">
+          {isFetchingNextPage ? (
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#3A9EFF]"></div>
+          ) : hasNextPage ? (
+            <span className="text-sm">Scroll for more...</span>
+          ) : (
+            <span className="text-sm opacity-50">End of records</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 // Customer Sales Info Component (Last 30 Days)
 function CustomerSalesInfo({ customerId }: { customerId: string }) {
-  const { user } = useAuthStore();
   const { summary, isLoading, data, error } = useCustomerRecentSales(customerId);
-
-  // Debug logging
-  console.log('CustomerSalesInfo: Rendering for customer:', customerId);
-  console.log('CustomerSalesInfo: User authenticated:', !!user, user);
-  console.log('CustomerSalesInfo Debug:', {
-    customerId,
-    isLoading,
-    hasData: !!data,
-    dataLength: data?.length,
-    summary,
-    error
-  });
 
   if (isLoading) {
     return (
@@ -483,15 +501,7 @@ function CustomerSalesInfo({ customerId }: { customerId: string }) {
     );
   }
 
-  if (error) {
-    console.error('Error loading customer sales:', error);
-    return null;
-  }
-
-  if (summary.total_count === 0) {
-    console.log('No sales found for customer:', customerId);
-    return null; // Don't show if no sales
-  }
+  if (error || summary.total_count === 0) return null;
 
   return (
     <div className="pt-2 mt-2 border-t border-white/10">
@@ -543,131 +553,27 @@ function CustomerDetailsDialog({ open, onOpenChange, customer, onEdit, onDelete 
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Basic Info */}
           <Card className="bg-[#0A2A5C] border-white/10">
-            <CardHeader>
-              <CardTitle className="text-[#F0F4F8]">Basic Information</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle className="text-[#F0F4F8]">Basic Information</CardTitle></CardHeader>
             <CardContent className="space-y-2">
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-[#8B9CB8] text-sm">Owner Name</p>
-                  <p className="text-[#F0F4F8]">{customer.owner_name || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-[#8B9CB8] text-sm">Phone</p>
-                  <p className="text-[#F0F4F8]">{customer.phone || 'N/A'}</p>
-                </div>
-                <div className="col-span-2">
-                  <p className="text-[#8B9CB8] text-sm">Address</p>
-                  <p className="text-[#F0F4F8]">{customer.address || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-[#8B9CB8] text-sm">GPS Latitude</p>
-                  <p className="text-[#F0F4F8] font-mono text-xs">{customer.lat?.toFixed(6) || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-[#8B9CB8] text-sm">GPS Longitude</p>
-                  <p className="text-[#F0F4F8] font-mono text-xs">{customer.lng?.toFixed(6) || 'N/A'}</p>
-                </div>
+                <div><p className="text-[#8B9CB8] text-sm">Owner Name</p><p className="text-[#F0F4F8]">{customer.owner_name || 'N/A'}</p></div>
+                <div><p className="text-[#8B9CB8] text-sm">Phone</p><p className="text-[#F0F4F8]">{customer.phone || 'N/A'}</p></div>
+                <div className="col-span-2"><p className="text-[#8B9CB8] text-sm">Address</p><p className="text-[#F0F4F8]">{customer.address || 'N/A'}</p></div>
               </div>
             </CardContent>
           </Card>
-
-          {/* Recurring Shop Details */}
-          {customer.pipeline === 'recurring' && (
-            <Card className="bg-[#0A2A5C] border-white/10">
-              <CardHeader>
-                <CardTitle className="text-[#F0F4F8]">Shop Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <p className="text-[#8B9CB8] text-sm mb-2">Monthly Sales (tons)</p>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    {customer.monthly_sales_advance && (
-                      <div>Advance: <span className="text-[#2ECC71]">{customer.monthly_sales_advance}</span></div>
-                    )}
-                    {customer.monthly_sales_basic && (
-                      <div>Basic: <span className="text-[#2ECC71]">{customer.monthly_sales_basic}</span></div>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[#8B9CB8] text-sm">Credit Practice</p>
-                  <p className="text-[#F0F4F8]">
-                    {customer.credit_practice || 'N/A'}
-                    {customer.credit_days && ` (${customer.credit_days} days)`}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Project Details */}
-          {customer.pipeline === 'one_time' && (
-            <Card className="bg-[#0A2A5C] border-white/10">
-              <CardHeader>
-                <CardTitle className="text-[#F0F4F8]">Project Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-[#8B9CB8] text-sm">Built-up Area</p>
-                    <p className="text-[#F0F4F8]">{customer.built_up_area || 0} sqft</p>
-                  </div>
-                  <div>
-                    <p className="text-[#8B9CB8] text-sm">Floors</p>
-                    <p className="text-[#F0F4F8]">{customer.number_of_floors || 0}</p>
-                  </div>
-                  <div>
-                    <p className="text-[#8B9CB8] text-sm">Structure Type</p>
-                    <p className="text-[#F0F4F8]">{customer.structure_type || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[#8B9CB8] text-sm">Construction Stage</p>
-                    <p className="text-[#D4A843] font-semibold">{customer.construction_stage || 0}%</p>
-                  </div>
-                  <div>
-                    <p className="text-[#8B9CB8] text-sm">Cement Required</p>
-                    <p className="text-[#2ECC71] font-semibold">{customer.cement_required || 0} tons</p>
-                  </div>
-                  <div>
-                    <p className="text-[#8B9CB8] text-sm">Cement Remaining</p>
-                    <p className="text-[#2ECC71] font-semibold">{customer.cement_remaining || 0} tons</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Actions */}
           <div className="flex justify-between gap-3">
             <div>
               {onDelete && (
-                <Button
-                  onClick={onDelete}
-                  variant="outline"
-                  className="border-red-900/50 text-red-400 hover:bg-red-900/20 hover:text-red-300"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete Customer
+                <Button onClick={onDelete} variant="outline" className="border-red-900/50 text-red-400">
+                  <Trash2 className="w-4 h-4 mr-2" /> Delete Customer
                 </Button>
               )}
             </div>
             <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                className="border-white/10 text-[#8B9CB8]"
-              >
-                Close
-              </Button>
-              <Button
-                onClick={onEdit}
-                className="bg-[#3A9EFF] hover:bg-[#2D7FCC]"
-              >
-                Edit Customer
-              </Button>
+              <Button variant="outline" onClick={() => onOpenChange(false)} className="border-white/10 text-[#8B9CB8]">Close</Button>
+              <Button onClick={onEdit} className="bg-[#3A9EFF] hover:bg-[#2D7FCC]">Edit Customer</Button>
             </div>
           </div>
         </div>

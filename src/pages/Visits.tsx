@@ -4,10 +4,12 @@
 // ============================================================
 
 import { useState, useMemo } from 'react';
+import { useInView } from 'react-intersection-observer';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
-import { useCustomers } from '@/hooks/useCustomers';
+import { useCustomersInfinite } from '@/hooks/useCustomers';
+import { useDebounce } from '@/hooks/useDebounce';
 import type { Customer, Visit } from '@/types';
 import {
   Calendar as CalendarIcon,
@@ -433,6 +435,8 @@ export function Visits() {
   const { data: settings } = useSettings(); // Need settings for instant visit check
   const [viewMode, setViewMode] = useState<'shops' | 'schedule'>('shops');
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 500);
+  const { ref: observerRef, inView } = useInView();
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [checkInModalOpen, setCheckInModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -560,7 +564,20 @@ export function Visits() {
   };
 
   // 1. Fetch Shops
-  const { data: customers = [], isLoading: customersLoading } = useCustomers({ status: 'active' });
+  const {
+    data: customerPages,
+    isLoading: customersLoading,
+    isFetchingNextPage,
+    fetchNextPage,
+    hasNextPage
+  } = useCustomersInfinite({
+    status: 'active',
+    searchQuery: debouncedSearch,
+  });
+
+  if (inView && hasNextPage && !isFetchingNextPage) {
+    fetchNextPage();
+  }
 
   // 2. Fetch My Schedule (Today/Upcoming)
   const { data: myVisits = [] } = useQuery({
@@ -628,7 +645,9 @@ export function Visits() {
 
   // Filter Logic
   const filteredCustomers = useMemo(() => {
-    return customers.filter(c => {
+    const allCustomers = customerPages?.pages.flatMap(page => page) || [];
+
+    return allCustomers.filter(c => {
       const matchSearch =
         c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.area?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -638,11 +657,11 @@ export function Visits() {
       const matchOwner =
         priorityFilter === 'all' || user?.role !== 'sales_rep'
           ? true
-          : (c as any).created_by === user?.id;
+          : c.created_by === user?.id || c.sales_rep_id === user?.id || c.assigned_to === user?.id;
 
       return matchSearch && matchOwner;
     });
-  }, [customers, searchQuery, priorityFilter, user]);
+  }, [customerPages, searchQuery, priorityFilter, user]);
 
   const openSchedule = (customer: Customer) => {
     setSelectedCustomer(customer);
@@ -846,7 +865,21 @@ export function Visits() {
                     ))}
                   </tbody>
                 </table>
-                {filteredCustomers.length === 0 && (
+
+                {/* Infinite Scroll Trigger */}
+                {viewMode === 'shops' && (
+                  <div ref={observerRef} className="py-4 text-center text-[#8B9CB8] border-t border-white/10">
+                    {isFetchingNextPage ? (
+                      <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-[#3A9EFF]"></div>
+                    ) : hasNextPage ? (
+                      <span className="text-sm">Scroll for more...</span>
+                    ) : (
+                      <span className="text-sm opacity-50">End of records</span>
+                    )}
+                  </div>
+                )}
+
+                {filteredCustomers.length === 0 && !customersLoading && (
                   <div className="p-12 text-center text-[#8B9CB8]">
                     <Building2 className="w-12 h-12 mx-auto mb-3 opacity-20" />
                     <p>No shops found matching your criteria</p>

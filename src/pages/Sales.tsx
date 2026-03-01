@@ -3,9 +3,10 @@
 // Search for shops and record sales with auto-filled data
 // ============================================================
 
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { useState, useMemo } from 'react';
+import { useInView } from 'react-intersection-observer';
+import { useCustomersInfinite } from '@/hooks/useCustomers';
+import { useDebounce } from '@/hooks/useDebounce';
 import { ConversionForm } from '@/components/ConversionForm';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,34 +17,32 @@ import type { Customer } from '@/types';
 
 export function Sales() {
     const [searchQuery, setSearchQuery] = useState('');
+    const debouncedSearch = useDebounce(searchQuery, 500);
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
     const [showSaleForm, setShowSaleForm] = useState(false);
 
-    // Fetch all active customers for search
-    const { data: customers, isLoading, refetch } = useQuery({
-        queryKey: ['customers-for-sales'],
-        queryFn: async () => {
-            const { data, error } = await supabase
-                .from('customers')
-                .select('*')
-                .eq('status', 'active')
-                .order('name');
+    const { ref: observerRef, inView } = useInView();
 
-            if (error) throw error;
-            return data as Customer[];
-        },
+    // Fetch active customers efficiently using infinite query
+    const {
+        data: customerPages,
+        isLoading,
+        isFetchingNextPage,
+        fetchNextPage,
+        hasNextPage,
+        refetch,
+    } = useCustomersInfinite({
+        status: 'active',
+        searchQuery: debouncedSearch,
     });
 
-    // Filter customers based on search
-    const filteredCustomers = customers?.filter((customer) => {
-        const query = searchQuery.toLowerCase();
-        return (
-            customer.name.toLowerCase().includes(query) ||
-            customer.shop_name?.toLowerCase().includes(query) ||
-            customer.owner_name?.toLowerCase().includes(query) ||
-            customer.phone?.includes(query)
-        );
-    });
+    const filteredCustomers = useMemo(() => {
+        return customerPages?.pages.flatMap((page) => page) || [];
+    }, [customerPages]);
+
+    if (inView && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage();
+    }
 
     const handleRecordSale = (customer: Customer) => {
         setSelectedCustomer(customer);
@@ -185,6 +184,17 @@ export function Sales() {
                             </CardContent>
                         </Card>
                     ))}
+
+                    {/* Infinite Scroll Trigger */}
+                    <div ref={observerRef} className="col-span-1 md:col-span-2 lg:col-span-3 py-4 text-center text-[#8B9CB8]">
+                        {isFetchingNextPage ? (
+                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#3A9EFF]"></div>
+                        ) : hasNextPage ? (
+                            <span className="text-sm">Scroll for more...</span>
+                        ) : (
+                            <span className="text-sm opacity-50">End of records</span>
+                        )}
+                    </div>
                 </div>
             ) : (
                 <Card className="bg-[#0A2A5C] border-white/10">

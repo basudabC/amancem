@@ -4,6 +4,7 @@
 
 export {
   useCustomers,
+  useCustomersInfinite,
   useCustomer,
   useCreateCustomer,
   useUpdateCustomer,

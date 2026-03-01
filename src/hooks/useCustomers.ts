@@ -2,9 +2,126 @@
 // AMAN CEMENT CRM — Customer Data Hooks (React Query)
 // ============================================================
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import type { Customer, Visit, PipelineType } from '@/types';
+
+// Fetch infinite customers with search and filters (Pagination)
+export const useCustomersInfinite = (filters?: {
+  pipeline?: PipelineType;
+  territoryId?: string;
+  status?: 'active' | 'archived';
+  salesRepId?: string;
+  searchQuery?: string;
+}) => {
+  const PAGE_SIZE = 50; // Load 50 at a time
+
+  return useInfiniteQuery({
+    queryKey: ['customers-infinite', filters],
+    initialPageParam: 0,
+    queryFn: async ({ pageParam = 0 }: { pageParam?: number }): Promise<Customer[]> => {
+      let query = supabase
+        .from('customers')
+        .select('*, territories(name, color_key), profiles:assigned_to(full_name)')
+        .order('created_at', { ascending: false })
+        .range(pageParam * PAGE_SIZE, (pageParam + 1) * PAGE_SIZE - 1);
+
+      if (filters?.searchQuery) {
+        query = query.or(`name.ilike.%${filters.searchQuery}%,phone.ilike.%${filters.searchQuery}%,address.ilike.%${filters.searchQuery}%`);
+      }
+
+      if (filters?.pipeline) {
+        query = query.eq('pipeline', filters.pipeline);
+      }
+      if (filters?.territoryId) {
+        query = query.eq('territory_id', filters.territoryId);
+      }
+      if (filters?.status) {
+        query = query.eq('status', filters.status);
+      }
+      if (filters?.salesRepId) {
+        query = query.or(`sales_rep_id.eq.${filters.salesRepId},assigned_to.eq.${filters.salesRepId},created_by.eq.${filters.salesRepId}`);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      const transformedData = (data || []).map((item: any) => {
+        return {
+          id: item.id,
+          pipeline: item.pipeline,
+          name: item.name,
+          owner_name: item.owner_name,
+          owner_age: item.owner_age,
+          phone: item.phone,
+          email: item.email,
+          address: item.address,
+          lat: item.lat,
+          lng: item.lng,
+          latitude: item.latitude,
+          longitude: item.longitude,
+          area: item.area,
+          territory_id: item.territory_id,
+          sales_rep_id: item.sales_rep_id,
+          assigned_to: item.assigned_to,
+          created_by: item.created_by,
+          status: item.status,
+          pipeline_data: item.pipeline_data,
+          last_outcome: item.last_outcome,
+          last_visit_at: item.last_visit_at,
+          last_visit_outcome: item.last_visit_outcome,
+          visit_count: item.visit_count,
+          is_converted: item.is_converted,
+          notes: item.notes,
+          tags: item.tags,
+          // Recurring shop fields
+          shop_name: item.shop_name,
+          monthly_sales_advance: item.monthly_sales_advance,
+          monthly_sales_advance_plus: item.monthly_sales_advance_plus,
+          monthly_sales_green: item.monthly_sales_green,
+          monthly_sales_basic: item.monthly_sales_basic,
+          monthly_sales_classic: item.monthly_sales_classic,
+          selling_price_advance: item.selling_price_advance,
+          selling_price_advance_plus: item.selling_price_advance_plus,
+          selling_price_green: item.selling_price_green,
+          selling_price_basic: item.selling_price_basic,
+          selling_price_classic: item.selling_price_classic,
+          brand_preferences: item.brand_preferences,
+          competitor_brands: item.competitor_brands,
+          storage_capacity: item.storage_capacity,
+          credit_practice: item.credit_practice,
+          credit_days: item.credit_days,
+          promotions_offered: item.promotions_offered,
+          // Project fields
+          built_up_area: item.built_up_area,
+          number_of_floors: item.number_of_floors,
+          structure_type: item.structure_type,
+          construction_stage: item.construction_stage,
+          project_started: item.project_started,
+          current_brand: item.current_brand,
+          cement_required: item.cement_required,
+          cement_consumed: item.cement_consumed,
+          cement_remaining: item.cement_remaining,
+          created_at: item.created_at,
+          updated_at: item.updated_at,
+          territory_name: item.territories?.name,
+          territory_color_key: item.territories?.color_key,
+          sales_rep_name: item.profiles?.full_name,
+        } as Customer;
+      });
+
+      return transformedData;
+    },
+    getNextPageParam: (lastPage, allPages) => {
+      if (lastPage.length < PAGE_SIZE) {
+        return undefined;
+      }
+      return allPages.length;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};
 
 // Fetch customers with filters
 export const useCustomers = (filters?: {
@@ -18,7 +135,8 @@ export const useCustomers = (filters?: {
     queryFn: async (): Promise<Customer[]> => {
       let query = supabase
         .from('customers')
-        .select('*, territories(name, color_key), profiles:assigned_to(full_name)');
+        .select('*, territories(name, color_key), profiles:assigned_to(full_name)')
+        .order('created_at', { ascending: false });
 
       if (filters?.pipeline) {
         query = query.eq('pipeline', filters.pipeline);
@@ -30,7 +148,7 @@ export const useCustomers = (filters?: {
         query = query.eq('status', filters.status);
       }
       if (filters?.salesRepId) {
-        query = query.eq('sales_rep_id', filters.salesRepId);
+        query = query.or(`sales_rep_id.eq.${filters.salesRepId},assigned_to.eq.${filters.salesRepId},created_by.eq.${filters.salesRepId}`);
       }
 
       const { data, error } = await query;
