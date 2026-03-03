@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 import type { UserRole } from '@/types';
+import { RepPerformanceModal } from '@/components/RepPerformanceModal';
 import {
   Users,
   Search,
@@ -432,6 +433,7 @@ export function Team() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<any | null>(null);
   const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
+  const [profileMember, setProfileMember] = useState<any | null>(null);
 
   // Fetch team members
   const { data: teamMembers = [], isLoading } = useQuery({
@@ -742,7 +744,12 @@ export function Team() {
                             </span>
                           </div>
                           <div>
-                            <p className="font-medium text-[#F0F4F8]">{member.full_name}</p>
+                            <button
+                              onClick={() => setProfileMember(member)}
+                              className="font-medium text-[#F0F4F8] hover:text-[#3A9EFF] transition-colors text-left underline-offset-2 hover:underline cursor-pointer"
+                            >
+                              {member.full_name}
+                            </button>
                             <p className="text-xs text-[#8B9CB8]">{member.employee_code}</p>
                           </div>
                         </div>
@@ -840,13 +847,20 @@ export function Team() {
         )}
       </div>
 
-      {/* Team Member Modal */}
+      {/* Team Member Edit Modal */}
       <TeamMemberModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         member={selectedMember}
         territories={territories}
       />
-    </div >
+
+      {/* Rep Performance Profile Modal */}
+      <RepPerformanceModal
+        isOpen={!!profileMember}
+        onClose={() => setProfileMember(null)}
+        member={profileMember}
+      />
+    </div>
   );
 }
