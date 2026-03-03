@@ -2,10 +2,13 @@
 // AMAN CEMENT CRM — Customers List Page
 // ============================================================
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useCustomersInfinite, useDeleteCustomer } from '@/hooks/useCustomers';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 import { useInView } from 'react-intersection-observer';
 import { useCustomerRecentSales } from '@/hooks/useConversions';
 import { CustomerForm } from '@/components/CustomerForm';
@@ -45,9 +48,102 @@ import {
   UserPlus,
   Trash2,
   AlertTriangle,
+  Target,
 } from 'lucide-react';
 import { AssignCustomerDialog } from '@/components/AssignCustomerDialog';
 import type { Customer } from '@/types';
+
+// New Subcomponent for Target Dialog
+function SetTargetDialog({
+  open,
+  onOpenChange,
+  customer,
+  onSuccess
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  customer: Customer | null;
+  onSuccess: () => void;
+}) {
+  const [target, setTarget] = useState<string>('');
+  const queryClient = useQueryClient();
+
+  // Load existing target when modal opens
+  useEffect(() => {
+    if (customer && open) {
+      setTarget(customer.priority_target ? String(customer.priority_target) : '');
+    }
+  }, [customer, open]);
+
+  const setTargetMutation = useMutation({
+    mutationFn: async (val: number) => {
+      if (!customer) throw new Error('No customer selected');
+      const { error } = await supabase
+        .from('customers')
+        .update({ priority_target: val })
+        .eq('id', customer.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(`Target updated for ${customer?.shop_name || customer?.name}`);
+      queryClient.invalidateQueries({ queryKey: ['customers-infinite'] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] }); // newly added
+      onSuccess();
+      onOpenChange(false);
+    },
+    onError: (err: any) => {
+      toast.error('Failed to set target: ' + err.message);
+    }
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const val = parseInt(target, 10);
+    if (isNaN(val) || val < 0) {
+      toast.error('Please enter a valid target amount');
+      return;
+    }
+    setTargetMutation.mutate(val);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-[#061A3A] border-white/10 sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle className="text-[#F0F4F8] flex items-center gap-2">
+            <Target className="w-5 h-5 text-[#C41E3A]" />
+            Set Priority Bag Target
+          </DialogTitle>
+          <DialogDescription className="text-[#8B9CB8]">
+            Set a monthly bag target for {customer?.shop_name || customer?.name}. This shop will be prioritized on your dashboard.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 py-4">
+          <div className="space-y-2">
+            <label className="text-sm text-[#8B9CB8]">Target (Bags/Month)</label>
+            <Input
+              type="number"
+              min="0"
+              value={target}
+              onChange={e => setTarget(e.target.value)}
+              placeholder="e.g. 500"
+              required
+              className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8]"
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="border-white/10 text-[#8B9CB8]">
+              Cancel
+            </Button>
+            <Button type="submit" disabled={setTargetMutation.isPending} className="bg-[#C41E3A] hover:bg-[#9B1830]">
+              {setTargetMutation.isPending ? 'Saving...' : 'Save Target'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export function Customers() {
   const { user } = useAuthStore();
@@ -60,6 +156,7 @@ export function Customers() {
   const [customerToAssign, setCustomerToAssign] = useState<Customer | null>(null);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showTargetDialog, setShowTargetDialog] = useState(false); // NEW
 
   // Infinite Scroll & Debounce Search logic
   const debouncedSearch = useDebounce(searchQuery, 500);
@@ -100,6 +197,12 @@ export function Customers() {
     setShowCustomerForm(true);
   };
 
+  const handleSetTarget = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setShowDetails(false);
+    setShowTargetDialog(true);
+  };
+
   const handleDeleteRequest = (customer: Customer) => {
     setCustomerToDelete(customer);
     setShowDetails(false);
@@ -125,6 +228,7 @@ export function Customers() {
   };
 
   const isCountryHead = user?.role === 'country_head';
+  const isSalesRep = user?.role === 'sales_rep';
 
   return (
     <div className="p-6 space-y-6">
@@ -156,6 +260,14 @@ export function Customers() {
         onSuccess={handleFormSuccess}
       />
 
+      {/* Set Target Dialog */}
+      <SetTargetDialog
+        open={showTargetDialog}
+        onOpenChange={setShowTargetDialog}
+        customer={selectedCustomer}
+        onSuccess={refetch}
+      />
+
       {/* Customer Details Dialog */}
       {selectedCustomer && (
         <CustomerDetailsDialog
@@ -164,6 +276,7 @@ export function Customers() {
           customer={selectedCustomer}
           onEdit={() => handleEditCustomer(selectedCustomer)}
           onDelete={isCountryHead ? () => handleDeleteRequest(selectedCustomer) : undefined}
+          onSetTarget={isSalesRep ? () => handleSetTarget(selectedCustomer) : undefined}
         />
       )}
 
@@ -539,9 +652,10 @@ interface CustomerDetailsDialogProps {
   customer: Customer;
   onEdit: () => void;
   onDelete?: () => void;
+  onSetTarget?: () => void; // NEW
 }
 
-function CustomerDetailsDialog({ open, onOpenChange, customer, onEdit, onDelete }: CustomerDetailsDialogProps) {
+function CustomerDetailsDialog({ open, onOpenChange, customer, onEdit, onDelete, onSetTarget }: CustomerDetailsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[#061A3A] border-white/10">
@@ -573,6 +687,12 @@ function CustomerDetailsDialog({ open, onOpenChange, customer, onEdit, onDelete 
             </div>
             <div className="flex gap-3">
               <Button variant="outline" onClick={() => onOpenChange(false)} className="border-white/10 text-[#8B9CB8]">Close</Button>
+              {onSetTarget && (
+                <Button onClick={onSetTarget} className="bg-[#9B6BFF] hover:bg-[#8050E0] text-white">
+                  <Target className="w-4 h-4 mr-2" />
+                  Set Bag Target
+                </Button>
+              )}
               <Button onClick={onEdit} className="bg-[#3A9EFF] hover:bg-[#2D7FCC]">Edit Customer</Button>
             </div>
           </div>

@@ -57,6 +57,7 @@ export interface CustomerFormData {
   sales_rep_id?: string;
   sales_rep_name?: string;
   contact_person?: string;
+  priority_target?: number; // NEW
 }
 
 export interface User {
@@ -171,6 +172,8 @@ export interface Customer {
   // For recurring customers (shops)
   shop_name?: string;
   monthly_volume?: number;
+  priority_target?: number; // Target bags set by sales rep
+
 
   // Recurring shop - Monthly sales by product (NEW)
   monthly_sales_advance?: number;

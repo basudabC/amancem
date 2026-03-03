@@ -26,6 +26,7 @@ import {
   BarChart3,
   Store,
 } from 'lucide-react';
+import type { Customer } from '@/types';
 
 
 export function DashboardRep() {
@@ -38,6 +39,12 @@ export function DashboardRep() {
   });
 
   const { data: todayVisits, isLoading: visitsLoading } = useTodayVisits(user?.id);
+
+  // Get Priority Targets from the loaded active customers pool
+  const priorityTargets = useMemo(() => {
+    return customers?.filter((c) => (c.priority_target || 0) > 0)
+      .sort((a, b) => (b.priority_target || 0) - (a.priority_target || 0)) || [];
+  }, [customers]);
 
   // Shop counts: total added by this rep, and today's additions
   const todayDateStr = useMemo(() => {
@@ -371,6 +378,81 @@ export function DashboardRep() {
             <div className="text-center py-8 text-[#8B9CB8]">
               <CheckCircle2 className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p>No pending follow-ups</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* NEW: My Priority Targets Table */}
+      <Card className="bg-[#0A2A5C] border-white/10 lg:col-span-3">
+        <CardHeader>
+          <CardTitle className="text-[#F0F4F8] flex items-center gap-2">
+            <Target className="w-5 h-5 text-[#C41E3A]" />
+            My Priority Targets
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {customersLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#C41E3A]" />
+            </div>
+          ) : priorityTargets.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-[#0F3460] text-xs uppercase text-[#8B9CB8]">
+                  <tr>
+                    <th className="px-4 py-3 rounded-tl-lg">Shop Name</th>
+                    <th className="px-4 py-3">Capacity</th>
+                    <th className="px-4 py-3 text-center">Visits</th>
+                    <th className="px-4 py-3">Competitors</th>
+                    <th className="px-4 py-3 text-[#FF7C3A]">Bag Target</th>
+                    <th className="px-4 py-3 text-[#2ECC71]">Monthly Sales</th>
+                    <th className="px-4 py-3 rounded-tr-lg">Progress</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 text-[#F0F4F8]">
+                  {priorityTargets.map((shop) => {
+                    const totalSales = (shop.monthly_sales_advance || 0) +
+                      (shop.monthly_sales_advance_plus || 0) +
+                      (shop.monthly_sales_green || 0) +
+                      (shop.monthly_sales_basic || 0) +
+                      (shop.monthly_sales_classic || 0);
+
+                    const target = shop.priority_target || 1; // avoid division by 0
+                    const progress = Math.min((totalSales / target) * 100, 100);
+
+                    return (
+                      <tr key={shop.id} className="hover:bg-white/5 transition-colors">
+                        <td className="px-4 py-3 font-medium">
+                          {shop.shop_name || shop.name}
+                          <div className="text-xs text-[#8B9CB8] mt-0.5">{shop.area}</div>
+                        </td>
+                        <td className="px-4 py-3">{shop.storage_capacity ? `${shop.storage_capacity} Tons` : '-'}</td>
+                        <td className="px-4 py-3 text-center font-medium text-[#3A9EFF]">{shop.visit_count || 0}</td>
+                        <td className="px-4 py-3 text-[#8B9CB8] max-w-[150px] truncate">
+                          {shop.competitor_brands?.join(', ') || '-'}
+                        </td>
+                        <td className="px-4 py-3 font-bold text-[#FF7C3A] text-base">{shop.priority_target}</td>
+                        <td className="px-4 py-3 font-bold text-[#2ECC71] text-base">{totalSales}</td>
+                        <td className="px-4 py-3 w-32">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs text-right {progress >= 100 ? 'text-[#2ECC71]' : 'text-[#8B9CB8]'}">
+                              {progress.toFixed(0)}%
+                            </span>
+                            <Progress value={progress} className={`h-1.5 bg-[#0F3460] ${progress >= 100 ? '[&>div]:bg-[#2ECC71]' : '[&>div]:bg-[#3A9EFF]'}`} />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-12 text-[#8B9CB8]">
+              <Target className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>No priority targets set.</p>
+              <p className="text-sm mt-1">Go to Customers list to add targets to shops.</p>
             </div>
           )}
         </CardContent>

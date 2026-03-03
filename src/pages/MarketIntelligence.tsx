@@ -14,9 +14,19 @@ import {
     useRealtimeMarketIntel,
     type MarketIntelFilters
 } from '@/hooks/useMarketIntel';
-import { DatePickerWithRange } from '@/components/ui/date-range-picker';
-import { addDays } from 'date-fns';
+import {
+    addDays,
+    startOfDay,
+    endOfDay,
+    startOfMonth,
+    endOfMonth,
+    subMonths,
+    subDays
+} from 'date-fns';
 import { type DateRange } from 'react-day-picker';
+import { useCustomersInfinite } from '@/hooks/useCustomers';
+import { useInView } from 'react-intersection-observer';
+import { Progress } from '@/components/ui/progress';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     PieChart, Pie, Cell, Legend
@@ -28,7 +38,8 @@ import {
     Target,
     AlertTriangle,
     Building2,
-    PieChart as PieChartIcon
+    PieChart as PieChartIcon,
+    Calendar as CalendarIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -45,10 +56,40 @@ const BRAND_COLORS: Record<string, string> = {
 export function MarketIntelligence() {
     const { data: territories } = useTerritories();
     const [selectedTerritory, setSelectedTerritory] = useState<string>('');
+    const [datePreset, setDatePreset] = useState<string>('last30');
     const [dateRange, setDateRange] = useState<DateRange | undefined>({
-        from: addDays(new Date(), -30),
-        to: new Date(),
+        from: subDays(startOfDay(new Date()), 30),
+        to: endOfDay(new Date()),
     });
+
+    const handlePresetChange = (preset: string) => {
+        setDatePreset(preset);
+        const today = new Date();
+        switch (preset) {
+            case 'today':
+                setDateRange({ from: startOfDay(today), to: endOfDay(today) });
+                break;
+            case 'yesterday':
+                const yesterday = subDays(today, 1);
+                setDateRange({ from: startOfDay(yesterday), to: endOfDay(yesterday) });
+                break;
+            case 'last7':
+                setDateRange({ from: subDays(startOfDay(today), 7), to: endOfDay(today) });
+                break;
+            case 'last30':
+                setDateRange({ from: subDays(startOfDay(today), 30), to: endOfDay(today) });
+                break;
+            case 'thisMonth':
+                setDateRange({ from: startOfMonth(today), to: endOfDay(today) });
+                break;
+            case 'lastMonth':
+                const lastMonth = subMonths(today, 1);
+                setDateRange({ from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) });
+                break;
+            default:
+                break;
+        }
+    };
 
     const filters: MarketIntelFilters = {
         territory_id: selectedTerritory,
@@ -61,6 +102,26 @@ export function MarketIntelligence() {
     const { data: marketSize, isLoading: loadingSize } = useMarketSize(filters);
     const { data: brandShare, isLoading: loadingBrand } = useBrandShare(filters);
     const { data: visitIntel, isLoading: loadingVisit } = useVisitIntel(filters);
+
+    // Infinite Query for all territory shops
+    const { ref: observerRef, inView } = useInView();
+    const {
+        data: shopPages,
+        isLoading: shopsLoading,
+        isFetchingNextPage,
+        fetchNextPage,
+        hasNextPage,
+    } = useCustomersInfinite({
+        territoryId: selectedTerritory,
+        status: 'active',
+    });
+
+    // Flatten pages and sort by priority target
+    const territoryShops = shopPages?.pages.flatMap((page) => page).sort((a, b) => (b.priority_target || 0) - (a.priority_target || 0)) || [];
+
+    if (inView && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage();
+    }
 
     const formatNumber = (num: number) => new Intl.NumberFormat('en-US').format(num);
 
@@ -99,8 +160,21 @@ export function MarketIntelligence() {
                             </SelectContent>
                         </Select>
                     </div>
-                    <div className="hidden sm:block">
-                        <DatePickerWithRange date={dateRange} setDate={setDateRange} />
+                    <div className="w-48 hidden sm:block">
+                        <Select value={datePreset} onValueChange={handlePresetChange}>
+                            <SelectTrigger className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8]">
+                                <CalendarIcon className="w-4 h-4 mr-2 text-[#9B6BFF]" />
+                                <SelectValue placeholder="Select timeframe" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8]">
+                                <SelectItem value="today">Today</SelectItem>
+                                <SelectItem value="yesterday">Yesterday</SelectItem>
+                                <SelectItem value="last7">Last 7 Days</SelectItem>
+                                <SelectItem value="last30">Last 30 Days</SelectItem>
+                                <SelectItem value="thisMonth">This Month</SelectItem>
+                                <SelectItem value="lastMonth">Last Month</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
                 </div>
             </div>
@@ -334,7 +408,7 @@ export function MarketIntelligence() {
                             {loadingVisit ? (
                                 <p className="text-[#8B9CB8]">Loading rep visit data...</p>
                             ) : visitIntel?.rep_shop_visits && visitIntel.rep_shop_visits.length > 0 ? (
-                                <div className="space-y-6">
+                                <div className="space-y-6 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                                     {visitIntel.rep_shop_visits.map((repData: any, idx: number) => (
                                         <div key={idx} className="bg-white/5 border border-white/10 rounded-lg overflow-hidden">
                                             {/* Rep Header */}
@@ -388,6 +462,99 @@ export function MarketIntelligence() {
                             ) : (
                                 <div className="text-center py-10 text-[#4A5B7A]">
                                     No shop visits recorded by sales reps in this range.
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    {/* SECTION G: Territory Shops Database & Targets */}
+                    <Card className="bg-[#0A2A5C] border-white/10 mt-6 xl:col-span-2">
+                        <CardHeader>
+                            <CardTitle className="text-[#F0F4F8] text-lg flex items-center gap-2">
+                                <Target className="w-5 h-5 text-[#C41E3A]" />
+                                Territory Shops & Priority Targets
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {shopsLoading ? (
+                                <div className="flex justify-center py-6">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#C41E3A]" />
+                                </div>
+                            ) : territoryShops.length > 0 ? (
+                                <div className="space-y-4">
+                                    <div className="overflow-x-auto max-h-[500px] overflow-y-auto relative custom-scrollbar">
+                                        <table className="w-full text-left text-sm">
+                                            <thead className="bg-[#0F3460] text-xs uppercase text-[#8B9CB8]">
+                                                <tr>
+                                                    <th className="px-4 py-3 rounded-tl-lg">Shop Details</th>
+                                                    <th className="px-4 py-3">Sales Rep</th>
+                                                    <th className="px-4 py-3">Capacity</th>
+                                                    <th className="px-4 py-3 text-center">Visits</th>
+                                                    <th className="px-4 py-3">Competitors</th>
+                                                    <th className="px-4 py-3 text-[#FF7C3A]">Bag Target</th>
+                                                    <th className="px-4 py-3 text-[#2ECC71]">Monthly Sales</th>
+                                                    <th className="px-4 py-3 rounded-tr-lg">Progress</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/5 text-[#F0F4F8]">
+                                                {territoryShops.map((shop) => {
+                                                    const totalSales = (shop.monthly_sales_advance || 0) +
+                                                        (shop.monthly_sales_advance_plus || 0) +
+                                                        (shop.monthly_sales_green || 0) +
+                                                        (shop.monthly_sales_basic || 0) +
+                                                        (shop.monthly_sales_classic || 0);
+
+                                                    const target = shop.priority_target || 0;
+                                                    const progress = target > 0 ? Math.min((totalSales / target) * 100, 100) : 0;
+
+                                                    return (
+                                                        <tr key={shop.id} className="hover:bg-white/5 transition-colors">
+                                                            <td className="px-4 py-3 font-medium">
+                                                                <div className="flex items-center gap-2">
+                                                                    {shop.shop_name || shop.name}
+                                                                    {target > 0 && <span className="bg-[#C41E3A]/20 text-[#C41E3A] px-1.5 py-0.5 rounded text-[10px] font-bold border border-[#C41E3A]/30">🎯 Focus</span>}
+                                                                </div>
+                                                                <div className="text-xs text-[#8B9CB8] mt-0.5">{shop.area}</div>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-[#8B9CB8]">{shop.sales_rep_name || <span className="text-yellow-500 italic text-xs">Unassigned</span>}</td>
+                                                            <td className="px-4 py-3 font-medium text-[#F0F4F8]">{shop.storage_capacity ? `${shop.storage_capacity} Tons` : '-'}</td>
+                                                            <td className="px-4 py-3 text-center font-medium text-[#3A9EFF]">{shop.visit_count || 0}</td>
+                                                            <td className="px-4 py-3 text-[#8B9CB8] max-w-[150px] truncate">
+                                                                {shop.competitor_brands?.join(', ') || '-'}
+                                                            </td>
+                                                            <td className="px-4 py-3 font-bold text-[#FF7C3A] text-base">{target > 0 ? target : '-'}</td>
+                                                            <td className="px-4 py-3 font-bold text-[#2ECC71] text-base">{totalSales}</td>
+                                                            <td className="px-4 py-3 w-32">
+                                                                {target > 0 ? (
+                                                                    <div className="flex flex-col gap-1">
+                                                                        <span className={`text-xs text-right ${progress >= 100 ? 'text-[#2ECC71]' : 'text-[#8B9CB8]'}`}>
+                                                                            {progress.toFixed(0)}%
+                                                                        </span>
+                                                                        <Progress value={progress} className={`h-1.5 bg-[#0F3460] ${progress >= 100 ? '[&>div]:bg-[#2ECC71]' : '[&>div]:bg-[#3A9EFF]'}`} />
+                                                                    </div>
+                                                                ) : <span className="text-xs text-[#4A5B7A]">-</span>}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {observerRef && (
+                                        <div ref={observerRef} className="py-2 text-center text-[#8B9CB8]">
+                                            {isFetchingNextPage ? (
+                                                <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-[#3A9EFF]"></div>
+                                            ) : hasNextPage ? (
+                                                <span className="text-sm">Loading more shops...</span>
+                                            ) : (
+                                                <span className="text-xs opacity-50">End of records</span>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="text-center py-10 text-[#4A5B7A]">
+                                    No active customers in this territory.
                                 </div>
                             )}
                         </CardContent>

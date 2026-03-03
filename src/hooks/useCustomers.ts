@@ -75,6 +75,7 @@ export const useCustomersInfinite = (filters?: {
           is_converted: item.is_converted,
           notes: item.notes,
           tags: item.tags,
+          priority_target: item.priority_target,
           // Recurring shop fields
           shop_name: item.shop_name,
           monthly_sales_advance: item.monthly_sales_advance,
@@ -184,6 +185,7 @@ export const useCustomers = (filters?: {
           is_converted: item.is_converted,
           notes: item.notes,
           tags: item.tags,
+          priority_target: item.priority_target,
           // Recurring shop fields
           shop_name: item.shop_name,
           monthly_sales_advance: item.monthly_sales_advance,
