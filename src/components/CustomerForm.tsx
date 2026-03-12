@@ -676,20 +676,22 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
                                     <div className="flex gap-2">
                                         <Input
                                             required
+                                            readOnly
                                             type="number"
                                             step="any"
                                             value={formData.lat || ''}
                                             onChange={(e) => setFormData({ ...formData, lat: parseFloat(e.target.value) })}
-                                            className={`bg-[#061A3A] border-white/10 text-[#F0F4F8] ${errors.lat ? 'border-red-500 ring-1 ring-red-500' : ''}`}
+                                            className={`bg-[#061A3A] border-white/10 text-[#F0F4F8] opacity-70 cursor-not-allowed ${errors.lat ? 'border-red-500 ring-1 ring-red-500' : ''}`}
                                             placeholder="Latitude (23.8715)"
                                         />
                                         <Input
                                             required
+                                            readOnly
                                             type="number"
                                             step="any"
                                             value={formData.lng || ''}
                                             onChange={(e) => setFormData({ ...formData, lng: parseFloat(e.target.value) })}
-                                            className={`bg-[#061A3A] border-white/10 text-[#F0F4F8] ${errors.lng ? 'border-red-500 ring-1 ring-red-500' : ''}`}
+                                            className={`bg-[#061A3A] border-white/10 text-[#F0F4F8] opacity-70 cursor-not-allowed ${errors.lng ? 'border-red-500 ring-1 ring-red-500' : ''}`}
                                             placeholder="Longitude (90.3985)"
                                         />
                                         <Button
