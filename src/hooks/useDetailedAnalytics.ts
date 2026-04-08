@@ -21,6 +21,8 @@ export interface TerritoryStats {
     monthly_volume_tons: number;
     cement_required_tons: number;
     cement_consumed_tons: number;
+    dealers: number;
+    retailers: number;
 }
 
 export interface AreaStats {
@@ -33,6 +35,8 @@ export interface AreaStats {
     monthly_volume_tons: number;
     cement_required_tons: number;
     territories: string[];
+    dealers: number;
+    retailers: number;
 }
 
 function isAmanBrand(
@@ -56,7 +60,7 @@ export const useTerritoryAreaAnalytics = (userId?: string) => {
           id, pipeline, area, territory_id, is_converted, current_brand,
           brand_preferences, monthly_sales_advance, monthly_sales_advance_plus,
           monthly_sales_green, monthly_sales_basic, monthly_sales_classic,
-          cement_required, cement_consumed, status,
+          cement_required, cement_consumed, status, customer_type,
           territories(name, area)
         `)
                 .eq('status', 'active');
@@ -77,6 +81,7 @@ export const useTerritoryAreaAnalytics = (userId?: string) => {
                         recurring_aman: 0, recurring_others: 0,
                         projects_aman: 0, projects_others: 0,
                         monthly_volume_tons: 0, cement_required_tons: 0, cement_consumed_tons: 0,
+                        dealers: 0, retailers: 0,
                     });
                 }
                 const t = terrMap.get(tid)!;
@@ -84,6 +89,11 @@ export const useTerritoryAreaAnalytics = (userId?: string) => {
 
                 if (c.pipeline === 'recurring') {
                     t.recurring_shops++;
+                    if (c.customer_type?.toLowerCase() === 'dealer') {
+                        t.dealers++;
+                    } else if (c.customer_type?.toLowerCase() === 'retailer') {
+                        t.retailers++;
+                    }
                     t.monthly_volume_tons +=
                         (c.monthly_sales_advance || 0) + (c.monthly_sales_advance_plus || 0) +
                         (c.monthly_sales_green || 0) + (c.monthly_sales_basic || 0) +
@@ -108,6 +118,7 @@ export const useTerritoryAreaAnalytics = (userId?: string) => {
                         area: t.area, total_customers: 0, recurring_shops: 0, projects: 0,
                         recurring_aman: 0, projects_aman: 0,
                         monthly_volume_tons: 0, cement_required_tons: 0, territories: [],
+                        dealers: 0, retailers: 0,
                     });
                 }
                 const a = areaMap.get(t.area)!;
@@ -118,6 +129,8 @@ export const useTerritoryAreaAnalytics = (userId?: string) => {
                 a.projects_aman += t.projects_aman;
                 a.monthly_volume_tons += t.monthly_volume_tons;
                 a.cement_required_tons += t.cement_required_tons;
+                a.dealers += t.dealers;
+                a.retailers += t.retailers;
                 if (!a.territories.includes(t.territory_name)) a.territories.push(t.territory_name);
             }
 

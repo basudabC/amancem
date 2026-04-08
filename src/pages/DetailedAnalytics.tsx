@@ -235,7 +235,8 @@ function TerritoryAreaSection({ userId }: { userId: string }) {
                                     <th className="px-4 py-3 text-left text-xs text-[#8B9CB8] uppercase">Territory</th>
                                     <th className="px-4 py-3 text-left text-xs text-[#8B9CB8] uppercase">Area</th>
                                     <th className="px-4 py-3 text-center text-xs text-[#3A9EFF] uppercase">Total</th>
-                                    <th className="px-4 py-3 text-center text-xs text-[#2ECC71] uppercase">Shops</th>
+                                    <th className="px-4 py-3 text-center text-xs text-[#2ECC71] uppercase">Retailers</th>
+                                    <th className="px-4 py-3 text-center text-xs text-[#2ECC71] uppercase">Dealers</th>
                                     <th className="px-4 py-3 text-center text-xs text-[#D4A843] uppercase">Projects</th>
                                     <th className="px-4 py-3 text-center text-xs text-[#2ECC71] uppercase">Aman Shops</th>
                                     <th className="px-4 py-3 text-center text-xs text-[#9B6BFF] uppercase">Aman Projects</th>
@@ -249,7 +250,8 @@ function TerritoryAreaSection({ userId }: { userId: string }) {
                                         <td className="px-4 py-3 text-[#F0F4F8] font-medium">{t.territory_name}</td>
                                         <td className="px-4 py-3 text-[#8B9CB8] text-xs">{t.area}</td>
                                         <td className="px-4 py-3 text-center text-[#3A9EFF] font-bold">{t.total_customers}</td>
-                                        <td className="px-4 py-3 text-center text-[#2ECC71]">{t.recurring_shops}</td>
+                                        <td className="px-4 py-3 text-center text-[#2ECC71] font-semibold">{t.retailers}</td>
+                                        <td className="px-4 py-3 text-center text-[#2ECC71]">{t.dealers}</td>
                                         <td className="px-4 py-3 text-center text-[#D4A843]">{t.projects}</td>
                                         <td className="px-4 py-3 text-center">
                                             <span className="text-[#2ECC71] font-semibold">{t.recurring_aman}</span>
@@ -311,6 +313,14 @@ function AreaCard({ area }: { area: ReturnType<typeof useTerritoryAreaAnalytics>
                     <div className="flex justify-between text-xs">
                         <span className="text-[#8B9CB8]">Others</span>
                         <span className="text-[#8B9CB8]">{area.recurring_shops - area.recurring_aman}</span>
+                    </div>
+                    <div className="flex justify-between text-xs mt-1 pt-1 border-t border-white/5">
+                        <span className="text-[#8B9CB8]">Retailers</span>
+                        <span className="text-[#8B9CB8] font-medium">{area.retailers}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                        <span className="text-[#8B9CB8]">Dealers</span>
+                        <span className="text-[#8B9CB8] font-medium">{area.dealers}</span>
                     </div>
                     <div className="pt-1 border-t border-white/10 flex justify-between text-xs">
                         <span className="text-[#8B9CB8]">Total Monthly Volume</span>

@@ -11,8 +11,25 @@ export interface MarketIntelFilters {
     region_id?: string;
     area_id?: string;
     territory_id?: string;
+    territory_ids?: string[];
     date_range?: [Date, Date];
     brand_id?: string;
+}
+
+async function fetchAll(query: any) {
+    let allData: any[] = [];
+    let page = 0;
+    const PAGE_SIZE = 1000;
+    while (true) {
+        const { data, error } = await query.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+            allData = allData.concat(data);
+        }
+        if (!data || data.length < PAGE_SIZE) break;
+        page++;
+    }
+    return { data: allData, error: null };
 }
 
 // Subscribes to customer data updates
@@ -72,11 +89,11 @@ export function useMarketSize(filters: MarketIntelFilters) {
         queryFn: async () => {
             // If territory is specified, fetch the aggregation directly via simple DB logic
             // Since `get_territory_market_size` RPC was created, we can attempt to use it,
-            // But we will gracefully fallback to manual calculation if the RPC is unavailable
+            // But we will gracefully fallback to manual calculation if the RPC is unavailable or multi-territory is selected
             try {
-                if (filters.territory_id) {
+                if (filters.territory_id && (!filters.territory_ids || filters.territory_ids.length <= 1)) {
                     const { data, error } = await supabase.rpc('get_territory_market_size', {
-                        p_territory_id: filters.territory_id,
+                        p_territory_id: filters.territory_id || (filters.territory_ids && filters.territory_ids[0]),
                     });
                     if (!error && data && data.length > 0) {
                         return data[0];
@@ -89,24 +106,39 @@ export function useMarketSize(filters: MarketIntelFilters) {
             // Manual Query Fallback
             let query = supabase
                 .from('customers')
-                .select('pipeline, project_started, current_brand, storage_capacity, monthly_sales_advance, monthly_sales_advance_plus, monthly_sales_green, monthly_sales_basic, monthly_sales_classic, territory_id')
+                .select('pipeline, project_started, current_brand, storage_capacity, monthly_sales_advance, monthly_sales_advance_plus, monthly_sales_green, monthly_sales_basic, monthly_sales_classic, territory_id, customer_type')
                 .eq('status', 'active');
 
-            if (filters.territory_id) query = query.eq('territory_id', filters.territory_id);
+            if (filters.territory_ids && filters.territory_ids.length > 0) {
+                query = query.in('territory_id', filters.territory_ids);
+            } else if (filters.territory_id) {
+                query = query.eq('territory_id', filters.territory_id);
+            } else if (filters.territory_ids && filters.territory_ids.length === 0) {
+                return { total_market_volume: 0, our_volume: 0, total_shops: 0, total_dealers: 0, total_retailers: 0, active_projects: 0 };
+            }
 
-            const { data, error } = await query;
+            const { data, error } = await fetchAll(query);
             if (error) throw error;
 
             const result = {
                 total_market_volume: 0,
                 our_volume: 0,
                 total_shops: 0,
+                total_dealers: 0,
+                total_retailers: 0,
                 active_projects: 0
             };
 
+            const territory_performance: Record<string, { total_volume: number, our_volume: number }> = {};
+
             data?.forEach((c: any) => {
+                const tId = c.territory_id || 'unassigned';
+                if (!territory_performance[tId]) territory_performance[tId] = { total_volume: 0, our_volume: 0 };
+
                 // Total Market Volume = Storage Capacity in Tons * 20 bags
-                result.total_market_volume += (c.storage_capacity || 0) * 20;
+                const capTons = c.storage_capacity || 0;
+                result.total_market_volume += capTons * 20;
+                territory_performance[tId].total_volume += capTons * 20;
 
                 // Our captured share = Sum of Aman Cement monthly sales * 20 bags
                 const amanVolTons = (c.monthly_sales_advance || 0) +
@@ -115,11 +147,14 @@ export function useMarketSize(filters: MarketIntelFilters) {
                     (c.monthly_sales_basic || 0) +
                     (c.monthly_sales_classic || 0);
                 result.our_volume += amanVolTons * 20;
+                territory_performance[tId].our_volume += amanVolTons * 20;
 
                 // Total Mapped Shops (Dealer & Retailer)
                 const pipelineType = (c.pipeline || '').toLowerCase();
                 if (pipelineType === 'recurring') {
                     result.total_shops += 1;
+                    if (c.customer_type?.toLowerCase() === 'dealer') result.total_dealers += 1;
+                    if (c.customer_type?.toLowerCase() === 'retailer') result.total_retailers += 1;
                 }
                 // Active Projects using Aman Cement
                 else if (pipelineType === 'one_time') {
@@ -130,9 +165,12 @@ export function useMarketSize(filters: MarketIntelFilters) {
                 }
             });
 
-            return result;
+            return {
+                ...result,
+                territory_performance
+            };
         },
-        enabled: !!filters.territory_id // Often requires a territory to be meaningful
+        enabled: !!filters.territory_id || (!!filters.territory_ids && filters.territory_ids.length > 0)
     });
 }
 
@@ -157,11 +195,15 @@ export function useBrandShare(filters: MarketIntelFilters) {
                 .gte('created_at', startDate.toISOString())
                 .lte('created_at', endDate.toISOString());
 
-            if (filters.territory_id) {
+            if (filters.territory_ids && filters.territory_ids.length > 0) {
+                query = query.in('customers.territory_id', filters.territory_ids);
+            } else if (filters.territory_id) {
                 query = query.eq('customers.territory_id', filters.territory_id);
+            } else if (filters.territory_ids && filters.territory_ids.length === 0) {
+                return [];
             }
 
-            const { data, error } = await query;
+            const { data, error } = await fetchAll(query);
             if (error) throw error;
 
             // Temporary aggregations for the UI
@@ -170,6 +212,7 @@ export function useBrandShare(filters: MarketIntelFilters) {
                 shops_selling: number;
                 primary_shops: number;
                 est_volume: number;
+                est_volume_tons: number;
                 dominance_reason: string;
             }> = {};
 
@@ -181,12 +224,15 @@ export function useBrandShare(filters: MarketIntelFilters) {
                         shops_selling: 0,
                         primary_shops: 0,
                         est_volume: 0,
+                        est_volume_tons: 0,
                         dominance_reason: ''
                     };
                 }
 
                 brandData[bname].shops_selling += 1;
-                brandData[bname].est_volume += (r.monthly_volume || 0);
+                const volumeBags = r.monthly_volume || 0;
+                brandData[bname].est_volume += volumeBags;
+                brandData[bname].est_volume_tons += (volumeBags / 20);
 
                 if (r.promotions) {
                     if (!brandData[bname].dominance_reason.includes(r.promotions)) {
@@ -200,7 +246,7 @@ export function useBrandShare(filters: MarketIntelFilters) {
 
             return Object.values(brandData).sort((a, b) => b.est_volume - a.est_volume);
         },
-        enabled: !!filters.territory_id
+        enabled: !!filters.territory_id || (!!filters.territory_ids && filters.territory_ids.length > 0)
     });
 }
 
@@ -229,7 +275,9 @@ export function useVisitIntel(filters: MarketIntelFilters) {
                 .order('created_at', { ascending: false })
                 .limit(50);
 
-            if (filters.territory_id) {
+            if (filters.territory_ids && filters.territory_ids.length > 0) {
+                priceQuery = priceQuery.in('customers.territory_id', filters.territory_ids);
+            } else if (filters.territory_id) {
                 priceQuery = priceQuery.eq('customers.territory_id', filters.territory_id);
             }
 
@@ -240,7 +288,9 @@ export function useVisitIntel(filters: MarketIntelFilters) {
                 .gte('created_at', startDate.toISOString())
                 .lte('created_at', endDate.toISOString());
 
-            if (filters.territory_id) {
+            if (filters.territory_ids && filters.territory_ids.length > 0) {
+                visitQuery = visitQuery.in('customers.territory_id', filters.territory_ids);
+            } else if (filters.territory_id) {
                 visitQuery = visitQuery.eq('customers.territory_id', filters.territory_id);
             }
 
@@ -250,11 +300,18 @@ export function useVisitIntel(filters: MarketIntelFilters) {
                 .select('assigned_to, id')
                 .in('pipeline', ['recurring', 'one_time']);
 
-            if (filters.territory_id) {
+            if (filters.territory_ids && filters.territory_ids.length > 0) {
+                mappedShopsQuery = mappedShopsQuery.in('territory_id', filters.territory_ids);
+            } else if (filters.territory_id) {
                 mappedShopsQuery = mappedShopsQuery.eq('territory_id', filters.territory_id);
             }
 
-            const [priceRes, visitRes, mappedRes] = await Promise.all([priceQuery, visitQuery, mappedShopsQuery]);
+            // Fallback for limit 50 query doesn't need fetchAll, others do due to 1000 cap
+            const [priceRes, visitRes, mappedRes] = await Promise.all([
+                priceQuery, 
+                fetchAll(visitQuery), 
+                fetchAll(mappedShopsQuery)
+            ]);
 
             // Calculate total mapped assigned shops per rep
             const repAssignedCounts: Record<string, number> = {};
@@ -379,6 +436,6 @@ export function useVisitIntel(filters: MarketIntelFilters) {
 
             return { pricing, sentiments, activities, rep_shop_visits };
         },
-        enabled: !!filters.territory_id
+        enabled: !!filters.territory_id || (!!filters.territory_ids && filters.territory_ids.length > 0)
     });
 }

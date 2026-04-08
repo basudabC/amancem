@@ -435,6 +435,44 @@ export function Team() {
   const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
   const [profileMember, setProfileMember] = useState<any | null>(null);
 
+  const [selectedDivision, setSelectedDivision] = useState<string>('');
+  const [selectedRegion, setSelectedRegion] = useState<string>('');
+  const [selectedArea, setSelectedArea] = useState<string>('');
+
+  const { data: divisions = [] } = useQuery({
+    queryKey: ['divisions'],
+    queryFn: async () => {
+      const { data } = await supabase.from('divisions').select('*').order('name');
+      return data || [];
+    },
+  });
+
+  const { data: regions = [] } = useQuery({
+    queryKey: ['regions'],
+    queryFn: async () => {
+      const { data } = await supabase.from('regions').select('*').order('name');
+      return data || [];
+    },
+  });
+
+  const { data: areas = [] } = useQuery({
+    queryKey: ['areas'],
+    queryFn: async () => {
+      const { data } = await supabase.from('areas').select('*').order('name');
+      return data || [];
+    },
+  });
+
+  const filteredRegions = useMemo(() => {
+    if (!selectedDivision) return regions;
+    return regions.filter((r: any) => r.division_id === selectedDivision);
+  }, [regions, selectedDivision]);
+
+  const filteredAreas = useMemo(() => {
+    if (!selectedRegion) return areas;
+    return areas.filter((a: any) => a.region_id === selectedRegion);
+  }, [areas, selectedRegion]);
+
   // Fetch team members
   const { data: teamMembers = [], isLoading } = useQuery({
     queryKey: ['team'],
@@ -538,6 +576,59 @@ export function Team() {
     enabled: teamMembers.length > 0,
   });
 
+  const cumulativeStats = useMemo(() => {
+    const memberMap: Record<string, any> = {};
+    teamMembers.forEach(m => {
+        memberMap[m.id] = m;
+    });
+    
+    // Build direct reports map
+    const directSubordinates: Record<string, string[]> = {};
+    teamMembers.forEach(m => {
+        const mgr = m.reports_to;
+        if (mgr) {
+            if (!directSubordinates[mgr]) directSubordinates[mgr] = [];
+            directSubordinates[mgr].push(m.id);
+        }
+    });
+
+    const calculated: Record<string, { visits: number, customers: number, conversions: number, target: number }> = {};
+    
+    function getCumStats(id: string) {
+        if (calculated[id]) return calculated[id];
+        
+        const m = memberMap[id];
+        const directStats = performanceStats[id] || { visits: 0, customers: 0, conversions: 0 };
+        const directTarget = m?.target_monthly || 0;
+        
+        let sumVisits = directStats.visits;
+        let sumCustomers = directStats.customers;
+        let sumConversions = directStats.conversions;
+        let sumTarget = directTarget;
+        
+        const subs = directSubordinates[id] || [];
+        subs.forEach(subId => {
+            const subStats = getCumStats(subId);
+            sumVisits += subStats.visits;
+            sumCustomers += subStats.customers;
+            sumConversions += subStats.conversions;
+            sumTarget += subStats.target;
+        });
+        
+        calculated[id] = {
+            visits: sumVisits,
+            customers: sumCustomers,
+            conversions: sumConversions,
+            target: sumTarget
+        };
+        
+        return calculated[id];
+    }
+    
+    teamMembers.forEach(m => getCumStats(m.id));
+    return calculated;
+  }, [teamMembers, performanceStats]);
+
   // Delete mutation
   const deactivateMember = useMutation({
     mutationFn: async (id: string) => {
@@ -566,9 +657,20 @@ export function Team() {
 
       const matchesRole = filterRole === 'all' || member.role === filterRole;
 
-      return matchesSearch && matchesRole;
+      const dName = divisions.find((d: any) => d.id === selectedDivision)?.name;
+      const rName = regions.find((r: any) => r.id === selectedRegion)?.name;
+      const aName = areas.find((a: any) => a.id === selectedArea)?.name;
+
+      const memberRegionObj = regions.find((r: any) => r.name === member.region);
+      const impliedDivName = memberRegionObj ? divisions.find((d: any) => d.id === memberRegionObj.division_id)?.name : null;
+      
+      const matchesDiv = !selectedDivision || member.division === dName || impliedDivName === dName;
+      const matchesRegion = !selectedRegion || member.region === rName;
+      const matchesArea = !selectedArea || member.area === aName;
+
+      return matchesSearch && matchesRole && matchesDiv && matchesRegion && matchesArea;
     });
-  }, [teamMembers, searchQuery, filterRole]);
+  }, [teamMembers, searchQuery, filterRole, selectedDivision, selectedRegion, selectedArea, divisions, regions, areas]);
 
   // Stats
   const stats = useMemo(() => {
@@ -675,29 +777,64 @@ export function Team() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-4 bg-[#0A2A5C] p-4 rounded-xl border border-white/10">
-        <div className="flex-1 min-w-[250px] relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8B9CB8]" />
-          <input
-            type="text"
-            placeholder="Search team members..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] placeholder:text-[#4A5B7A] focus:border-[#3A9EFF] outline-none"
-          />
+      <div className="flex flex-col space-y-4 bg-[#0A2A5C] p-4 rounded-xl border border-white/10">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex-1 min-w-[250px] relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8B9CB8]" />
+            <input
+              type="text"
+              placeholder="Search team members..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] placeholder:text-[#4A5B7A] focus:border-[#3A9EFF] outline-none"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-[#8B9CB8]" />
+            <select
+              value={filterRole}
+              onChange={(e) => setFilterRole(e.target.value as any)}
+              className="px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] focus:border-[#3A9EFF] outline-none"
+            >
+              <option value="all">All Roles</option>
+              {roles.map((r) => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-[#8B9CB8]" />
-          <select
-            value={filterRole}
-            onChange={(e) => setFilterRole(e.target.value as any)}
-            className="px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] focus:border-[#3A9EFF] outline-none"
-          >
-            <option value="all">All Roles</option>
-            {roles.map((r) => (
-              <option key={r.value} value={r.value}>{r.label}</option>
-            ))}
-          </select>
+        
+        {/* Hierarchy Filters */}
+        <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-white/10">
+            <div className="w-40">
+                <select value={selectedDivision} onChange={(e) => {
+                    setSelectedDivision(e.target.value);
+                    setSelectedRegion('');
+                    setSelectedArea('');
+                }} className="w-full px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] focus:border-[#3A9EFF] outline-none">
+                    <option value="">All Divisions</option>
+                    {divisions.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+            </div>
+            {(selectedDivision || filteredRegions.length > 0) && (
+                <div className="w-40">
+                    <select value={selectedRegion} onChange={(e) => {
+                        setSelectedRegion(e.target.value);
+                        setSelectedArea('');
+                    }} className="w-full px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] focus:border-[#3A9EFF] outline-none">
+                        <option value="">All Regions</option>
+                        {filteredRegions.map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                    </select>
+                </div>
+            )}
+            {(selectedRegion || filteredAreas.length > 0) && (
+                <div className="w-40">
+                    <select value={selectedArea} onChange={(e) => setSelectedArea(e.target.value)} className="w-full px-3 py-2 bg-[#061A3A] border border-white/10 rounded-lg text-[#F0F4F8] focus:border-[#3A9EFF] outline-none">
+                        <option value="">All Areas</option>
+                        {filteredAreas.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </select>
+                </div>
+            )}
         </div>
       </div>
 
@@ -728,7 +865,145 @@ export function Team() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {filteredMembers.map((member) => {
+                {/* Managers Group Section */}
+                {filteredMembers.filter(m => m.role !== 'sales_rep').length > 0 && (
+                    <tr className="bg-[#0F3460]/50 border-y border-white/10">
+                        <td colSpan={7} className="px-4 py-2 text-xs font-bold text-[#F39C12] uppercase tracking-wider">
+                            Management Team (Cumulative Performance)
+                        </td>
+                    </tr>
+                )}
+                {filteredMembers.filter(m => m.role !== 'sales_rep').map((member) => {
+                  const memberStats = cumulativeStats[member.id] || { visits: 0, customers: 0, conversions: 0, target: 0 };
+                  const memberTerritories = member.territory_ids?.map((id: string) =>
+                    territories.find((t: any) => t.id === id)
+                  ).filter(Boolean) || [];
+
+                  return (
+                    <tr key={member.id} className="hover:bg-white/5 bg-[#061A3A]/30">
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-[#3A9EFF]/20 rounded-full flex items-center justify-center">
+                            <span className="text-[#3A9EFF] font-semibold">
+                              {member.full_name?.charAt(0).toUpperCase() || 'U'}
+                            </span>
+                          </div>
+                          <div>
+                            <button
+                              onClick={() => setProfileMember(member)}
+                              className="font-medium text-[#F0F4F8] hover:text-[#3A9EFF] transition-colors text-left underline-offset-2 hover:underline cursor-pointer"
+                            >
+                              {member.full_name}
+                            </button>
+                            <p className="text-xs text-[#8B9CB8]">{member.employee_code}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        {getRoleBadge(member.role)}
+                      </td>
+                      <td className="px-4 py-4">
+                        {memberTerritories.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {memberTerritories.slice(0, 2).map((t: any) => (
+                              <span key={t.id} className="px-2 py-0.5 bg-[#0F3460] text-[#8B9CB8] text-xs rounded">
+                                {t.name}
+                              </span>
+                            ))}
+                            {memberTerritories.length > 2 && (
+                              <span className="px-2 py-0.5 bg-[#0F3460] text-[#8B9CB8] text-xs rounded">
+                                +{memberTerritories.length - 2}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-[#8B9CB8]">All Area / Div</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-4 text-sm font-semibold">
+                          <div className="flex items-center gap-1 text-[#3A9EFF]" title="Cumulative Visits">
+                            <span className="text-[10px] opacity-70">∑</span>
+                            <CalendarCheck className="w-4 h-4 ml-0.5" />
+                            <span>{memberStats.visits}</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-[#9B6BFF]" title="Cumulative Customers">
+                            <span className="text-[10px] opacity-70">∑</span>
+                            <Users className="w-4 h-4 ml-0.5" />
+                            <span>{memberStats.customers}</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-[#2ECC71]" title="Cumulative Conversions">
+                            <span className="text-[10px] opacity-70">∑</span>
+                            <TrendingUp className="w-4 h-4 ml-0.5" />
+                            <span>{memberStats.conversions}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-[#FF7C3A] flex items-center gap-1" title="Cumulative Target">
+                            <span className="text-[10px] opacity-70">∑</span>
+                            ৳{(memberStats.target || 0).toLocaleString()}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        {member.last_login_at ? (
+                          <span className="text-sm text-[#8B9CB8]">
+                            {format(new Date(member.last_login_at), 'MMM d, h:mm a')}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-[#8B9CB8]">Never</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        <div className="relative">
+                          <button
+                            onClick={() => setActionMenuOpen(actionMenuOpen === member.id ? null : member.id)}
+                            className="p-1 hover:bg-white/10 rounded-lg"
+                          >
+                            <MoreVertical className="w-5 h-5 text-[#8B9CB8]" />
+                          </button>
+                          
+                          {actionMenuOpen === member.id && (
+                            <div className="absolute right-0 mt-2 w-48 bg-[#0F3460] rounded-xl border border-white/10 shadow-xl overflow-hidden z-10">
+                              <button
+                                onClick={() => handleEdit(member)}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#F0F4F8] hover:bg-white/5"
+                              >
+                                <Edit className="w-4 h-4" /> Edit Details
+                              </button>
+                              <button
+                                onClick={() => setProfileMember(member)}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#F0F4F8] hover:bg-white/5"
+                              >
+                                <Eye className="w-4 h-4" /> View Profile
+                              </button>
+                              {member.id !== user?.id && (
+                                <button
+                                  onClick={() => handleDeactivate(member.id)}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#C41E3A] hover:bg-white/5"
+                                >
+                                  <Trash2 className="w-4 h-4" /> Deactivate
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {/* Sales Reps Group Section */}
+                {filteredMembers.filter(m => m.role === 'sales_rep').length > 0 && (
+                    <tr className="bg-[#0F3460]/50 border-y border-white/10">
+                        <td colSpan={7} className="px-4 py-2 text-xs font-bold text-[#3A9EFF] uppercase tracking-wider">
+                            Sales Representatives (Direct Performance)
+                        </td>
+                    </tr>
+                )}
+                {filteredMembers.filter(m => m.role === 'sales_rep').map((member) => {
                   const memberStats = performanceStats[member.id] || { visits: 0, customers: 0, conversions: 0 };
                   const memberTerritories = member.territory_ids?.map((id: string) =>
                     territories.find((t: any) => t.id === id)
@@ -812,6 +1087,7 @@ export function Team() {
                       </td>
                       <td className="px-4 py-4 text-right">
                         <div className="relative">
+
                           <button
                             onClick={() => setActionMenuOpen(actionMenuOpen === member.id ? null : member.id)}
                             className="p-2 hover:bg-white/10 rounded-lg transition-colors"

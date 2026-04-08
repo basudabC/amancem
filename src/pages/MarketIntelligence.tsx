@@ -2,8 +2,9 @@
 // AMAN CEMENT CRM — Market Intelligence Dashboard
 // ============================================================
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useTerritories } from '@/hooks/useTerritories';
@@ -55,12 +56,75 @@ const BRAND_COLORS: Record<string, string> = {
 
 export function MarketIntelligence() {
     const { data: territories } = useTerritories();
+    const [selectedDivision, setSelectedDivision] = useState<string>('');
+    const [selectedRegion, setSelectedRegion] = useState<string>('');
+    const [selectedArea, setSelectedArea] = useState<string>('');
     const [selectedTerritory, setSelectedTerritory] = useState<string>('');
     const [datePreset, setDatePreset] = useState<string>('last30');
     const [dateRange, setDateRange] = useState<DateRange | undefined>({
         from: subDays(startOfDay(new Date()), 30),
         to: endOfDay(new Date()),
     });
+
+    const { data: divisions = [] } = useQuery({
+        queryKey: ['divisions'],
+        queryFn: async () => {
+            const { data } = await supabase.from('divisions').select('*').order('name');
+            return data || [];
+        },
+    });
+
+    const { data: regions = [] } = useQuery({
+        queryKey: ['regions'],
+        queryFn: async () => {
+            const { data } = await supabase.from('regions').select('*').order('name');
+            return data || [];
+        },
+    });
+
+    const { data: areas = [] } = useQuery({
+        queryKey: ['areas'],
+        queryFn: async () => {
+            const { data } = await supabase.from('areas').select('*').order('name');
+            return data || [];
+        },
+    });
+
+    const filteredRegions = useMemo(() => {
+        if (!selectedDivision) return regions;
+        return regions.filter((r: any) => r.division_id === selectedDivision);
+    }, [regions, selectedDivision]);
+
+    const filteredAreas = useMemo(() => {
+        if (!selectedRegion) return areas;
+        return areas.filter((a: any) => a.region_id === selectedRegion);
+    }, [areas, selectedRegion]);
+
+    const filteredTerritories = useMemo(() => {
+        if (!territories) return [];
+        let filtered = territories;
+        
+        if (selectedArea) {
+            const areaName = areas.find((a: any) => a.id === selectedArea)?.name;
+            filtered = filtered.filter(t => t.area === areaName);
+        } else if (selectedRegion) {
+            const regionName = regions.find((r: any) => r.id === selectedRegion)?.name;
+            filtered = filtered.filter(t => t.region === regionName);
+        } else if (selectedDivision) {
+            const divRegions = regions.filter((r: any) => r.division_id === selectedDivision).map((r: any) => r.name);
+            filtered = filtered.filter(t => divRegions.includes(t.region));
+        }
+        return filtered;
+    }, [territories, selectedDivision, selectedRegion, selectedArea, regions, areas]);
+
+    const activeTerritoryIds = useMemo(() => {
+        if (selectedTerritory) return [selectedTerritory];
+        if (selectedArea || selectedRegion || selectedDivision) {
+            return filteredTerritories.map(t => t.id);
+        }
+        // If nothing is selected, use all accessible territories
+        return territories ? territories.map(t => t.id) : undefined;
+    }, [selectedTerritory, selectedArea, selectedRegion, selectedDivision, filteredTerritories, territories]);
 
     const handlePresetChange = (preset: string) => {
         setDatePreset(preset);
@@ -92,7 +156,7 @@ export function MarketIntelligence() {
     };
 
     const filters: MarketIntelFilters = {
-        territory_id: selectedTerritory,
+        territory_ids: activeTerritoryIds,
         date_range: dateRange?.from && dateRange?.to ? [dateRange.from, dateRange.to] : undefined
     };
 
@@ -112,7 +176,7 @@ export function MarketIntelligence() {
         fetchNextPage,
         hasNextPage,
     } = useCustomersInfinite({
-        territoryId: selectedTerritory,
+        territoryIds: activeTerritoryIds,
         status: 'active',
     });
 
@@ -125,10 +189,21 @@ export function MarketIntelligence() {
 
     const formatNumber = (num: number) => new Intl.NumberFormat('en-US').format(num);
 
-    // Auto-select first territory if none selected
-    if (territories && territories.length > 0 && !selectedTerritory) {
-        setSelectedTerritory(territories[0].id);
-    }
+    const territoryLeaderboard = useMemo(() => {
+        if (!marketSize?.territory_performance || !territories) return [];
+        
+        return Object.entries(marketSize.territory_performance).map(([tId, perfRaw]) => {
+            const perf = perfRaw as any;
+            const t = territories.find((tx: any) => tx.id === tId);
+            return {
+                id: tId,
+                name: t ? t.name : 'Unknown Territory',
+                region: t ? t.region : 'Unknown',
+                volume_tons: perf.total_volume / 20,
+                our_volume_tons: perf.our_volume / 20
+            };
+        }).sort((a, b) => b.volume_tons - a.volume_tons); // Sort Descending
+    }, [marketSize, territories]);
 
     return (
         <div className="p-6 space-y-6">
@@ -144,15 +219,80 @@ export function MarketIntelligence() {
                     </p>
                 </div>
 
-                <div className="flex gap-3 items-center">
-                    <div className="w-64">
-                        <Select value={selectedTerritory} onValueChange={setSelectedTerritory}>
+                <div className="flex gap-3 items-center flex-wrap justify-end">
+                    <div className="w-40">
+                        <Select value={selectedDivision} onValueChange={(val) => {
+                            setSelectedDivision(val);
+                            setSelectedRegion('');
+                            setSelectedArea('');
+                            setSelectedTerritory('');
+                        }}>
                             <SelectTrigger className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8]">
-                                <MapPin className="w-4 h-4 mr-2 text-[#3A9EFF]" />
-                                <SelectValue placeholder="Select Territory" />
+                                <MapPin className="w-4 h-4 mr-2 text-[#9B6BFF]" />
+                                <SelectValue placeholder="All Divisions" />
                             </SelectTrigger>
                             <SelectContent className="bg-[#0A2A5C] border-white/10">
-                                {territories?.map(t => (
+                                <SelectItem value="all">All Divisions</SelectItem>
+                                {divisions?.map((d: any) => (
+                                    <SelectItem key={d.id} value={d.id} className="text-[#F0F4F8]">
+                                        {d.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    {(selectedDivision || filteredRegions.length > 0) && (
+                        <div className="w-40">
+                            <Select value={selectedRegion} onValueChange={(val) => {
+                                setSelectedRegion(val);
+                                setSelectedArea('');
+                                setSelectedTerritory('');
+                            }}>
+                                <SelectTrigger className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8]">
+                                    <MapPin className="w-4 h-4 mr-2 text-[#3A9EFF]" />
+                                    <SelectValue placeholder="All Regions" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-[#0A2A5C] border-white/10">
+                                    <SelectItem value="all">All Regions</SelectItem>
+                                    {filteredRegions?.map((r: any) => (
+                                        <SelectItem key={r.id} value={r.id} className="text-[#F0F4F8]">
+                                            {r.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+                    {(selectedRegion || filteredAreas.length > 0) && (
+                        <div className="w-40">
+                            <Select value={selectedArea} onValueChange={(val) => {
+                                setSelectedArea(val);
+                                setSelectedTerritory('');
+                            }}>
+                                <SelectTrigger className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8]">
+                                    <MapPin className="w-4 h-4 mr-2 text-[#2ECC71]" />
+                                    <SelectValue placeholder="All Areas" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-[#0A2A5C] border-white/10">
+                                    <SelectItem value="all">All Areas</SelectItem>
+                                    {filteredAreas?.map((a: any) => (
+                                        <SelectItem key={a.id} value={a.id} className="text-[#F0F4F8]">
+                                            {a.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+                    <div className="w-48">
+                        <Select value={selectedTerritory} onValueChange={setSelectedTerritory}>
+                            <SelectTrigger className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8]">
+                                <MapPin className="w-4 h-4 mr-2 text-[#C41E3A]" />
+                                <SelectValue placeholder="All Territories" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-[#0A2A5C] border-white/10">
+                                <SelectItem value="all">All Territories</SelectItem>
+                                {filteredTerritories?.map(t => (
                                     <SelectItem key={t.id} value={t.id} className="text-[#F0F4F8]">
                                         {t.name}
                                     </SelectItem>
@@ -160,10 +300,10 @@ export function MarketIntelligence() {
                             </SelectContent>
                         </Select>
                     </div>
-                    <div className="w-48 hidden sm:block">
+                    <div className="w-40 hidden sm:block">
                         <Select value={datePreset} onValueChange={handlePresetChange}>
                             <SelectTrigger className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8]">
-                                <CalendarIcon className="w-4 h-4 mr-2 text-[#9B6BFF]" />
+                                <CalendarIcon className="w-4 h-4 mr-2 text-[#F39C12]" />
                                 <SelectValue placeholder="Select timeframe" />
                             </SelectTrigger>
                             <SelectContent className="bg-[#0A2A5C] border-white/10 text-[#F0F4F8]">
@@ -179,20 +319,27 @@ export function MarketIntelligence() {
                 </div>
             </div>
 
-            {!selectedTerritory ? (
+            {(!activeTerritoryIds || activeTerritoryIds.length === 0) ? (
                 <div className="flex justify-center items-center h-64 bg-[#0A2A5C] rounded-xl border border-white/10">
-                    <p className="text-[#8B9CB8]">Please select a territory to view intelligence data.</p>
+                    <p className="text-[#8B9CB8]">No territories found for the selected hierarchy.</p>
                 </div>
             ) : (
                 <>
                     {/* SECTION A: Market Size KPIs */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                         <MetricCard
                             icon={<Store className="w-5 h-5" />}
                             label="Potential Market Cap (Bags)"
                             value={marketSize ? formatNumber(marketSize.total_market_volume) : '...'}
                             subtext="Estimated total territory monthly volume"
                             color="#3A9EFF"
+                        />
+                        <MetricCard
+                            icon={<Store className="w-5 h-5" />}
+                            label="Potential Market Cap (Tons)"
+                            value={marketSize ? formatNumber(marketSize.total_market_volume / 20) : '...'}
+                            subtext="Estimated mass territory monthly volume"
+                            color="#F39C12"
                         />
                         <MetricCard
                             icon={<Target className="w-5 h-5" />}
@@ -214,7 +361,7 @@ export function MarketIntelligence() {
                             icon={<TrendingUp className="w-5 h-5" />}
                             label="Total Mapped Shops"
                             value={marketSize?.total_shops || 0}
-                            subtext="Dealers & Retailers"
+                            subtext={`${marketSize?.total_dealers || 0} Dealers • ${marketSize?.total_retailers || 0} Retailers`}
                             color="#9B6BFF"
                         />
                     </div>
@@ -229,32 +376,26 @@ export function MarketIntelligence() {
                                     Brand Dominance (Est. Volume)
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="h-72 flex justify-center items-center relative">
+                            <CardContent className="h-72 flex justify-center items-center relative pr-4">
                                 {loadingBrand ? (
                                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3A9EFF]"></div>
                                 ) : brandShare && brandShare.length > 0 ? (
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <PieChart>
-                                            <Pie
-                                                data={brandShare}
-                                                cx="50%"
-                                                cy="50%"
-                                                innerRadius={60}
-                                                outerRadius={80}
-                                                paddingAngle={5}
-                                                dataKey="est_volume"
-                                                nameKey="brand"
-                                            >
-                                                {brandShare.map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={BRAND_COLORS[entry.brand] || BRAND_COLORS['Unknown']} />
-                                                ))}
-                                            </Pie>
+                                        <BarChart data={brandShare} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" horizontal={false} />
+                                            <XAxis type="number" stroke="#8B9CB8" tick={{ fill: '#8B9CB8' }} />
+                                            <YAxis type="category" dataKey="brand" stroke="#8B9CB8" tick={{ fill: '#F0F4F8' }} width={90} />
                                             <Tooltip
                                                 contentStyle={{ backgroundColor: '#061A3A', border: '1px solid rgba(255,255,255,0.1)' }}
                                                 itemStyle={{ color: '#F0F4F8' }}
+                                                formatter={(value: number) => [`${formatNumber(value)} Tons`, 'Volume']}
                                             />
-                                            <Legend />
-                                        </PieChart>
+                                            <Bar dataKey="est_volume_tons" radius={[0, 4, 4, 0]}>
+                                                {brandShare.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={BRAND_COLORS[entry.brand] || BRAND_COLORS['Unknown']} />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
                                     </ResponsiveContainer>
                                 ) : (
                                     <p className="text-[#8B9CB8]">No brand data found for this territory.</p>
@@ -311,6 +452,71 @@ export function MarketIntelligence() {
                             </div>
                         </Card>
                     </div>
+
+                    {/* SECTION D: Territory Performance Leaderboard */}
+                    {activeTerritoryIds && activeTerritoryIds.length > 1 && (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <Card className="bg-[#0A2A5C] border-white/10">
+                                <CardHeader>
+                                    <CardTitle className="text-[#F0F4F8] text-lg flex items-center gap-2">
+                                        <TrendingUp className="w-5 h-5 text-[#2ECC71]" />
+                                        Top 5 Territories (Volume)
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-4">
+                                        {territoryLeaderboard.slice(0, 5).map((t, idx) => (
+                                            <div key={t.id} className="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/10">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-6 h-6 rounded-full bg-[#2ECC71]/20 text-[#2ECC71] flex items-center justify-center font-bold text-xs">
+                                                        {idx + 1}
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-[#F0F4F8] font-medium leading-none">{t.name}</h4>
+                                                        <p className="text-xs text-[#8B9CB8] mt-1">{t.region}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-[#3A9EFF] font-bold">{formatNumber(t.volume_tons)} Tons</p>
+                                                    <p className="text-xs text-[#2ECC71]">Our Vol: {formatNumber(t.our_volume_tons)}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="bg-[#0A2A5C] border-white/10">
+                                <CardHeader>
+                                    <CardTitle className="text-[#F0F4F8] text-lg flex items-center gap-2">
+                                        <TrendingUp className="w-5 h-5 text-[#E74C5E] rotate-180" />
+                                        Least Performing Territories
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-4">
+                                        {territoryLeaderboard.slice().reverse().slice(0, 5).map((t, idx) => (
+                                            <div key={t.id} className="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/10">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-6 h-6 rounded-full bg-[#E74C5E]/20 text-[#E74C5E] flex items-center justify-center font-bold text-xs">
+                                                        {territoryLeaderboard.length - idx}
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-[#F0F4F8] font-medium leading-none">{t.name}</h4>
+                                                        <p className="text-xs text-[#8B9CB8] mt-1">{t.region}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-[#3A9EFF] font-bold">{formatNumber(t.volume_tons)} Tons</p>
+                                                    <p className="text-xs text-[#2ECC71]">Our Vol: {formatNumber(t.our_volume_tons)}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* SECTION E: Recent Field Sentiment Alerts */}

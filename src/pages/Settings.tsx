@@ -417,8 +417,23 @@ function NotificationsSection() {
 
 // App Preferences Section
 function PreferencesSection() {
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState(() => {
+    return localStorage.getItem('theme') !== 'light';
+  });
   const [language, setLanguage] = useState('en');
+
+  const toggleDarkMode = () => {
+    const newDarkMode = !darkMode;
+    setDarkMode(newDarkMode);
+    
+    if (newDarkMode) {
+      document.documentElement.classList.remove('light-mode');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.add('light-mode');
+      localStorage.setItem('theme', 'light');
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -433,7 +448,7 @@ function PreferencesSection() {
           </div>
         </div>
         <button
-          onClick={() => setDarkMode(!darkMode)}
+          onClick={toggleDarkMode}
           className={`relative w-12 h-6 rounded-full transition-colors ${darkMode ? 'bg-[#9B6BFF]' : 'bg-[#4A5B7A]'
             }`}
         >

@@ -45,6 +45,7 @@ interface CustomerFormProps {
     onOpenChange: (open: boolean) => void;
     customer?: Customer | null;
     onSuccess?: () => void;
+    defaultPipeline?: PipelineType;
 }
 
 const AMAN_PRODUCTS = [
@@ -92,9 +93,9 @@ const MONTHS = [
     'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
-export function CustomerForm({ open, onOpenChange, customer, onSuccess }: CustomerFormProps) {
+export function CustomerForm({ open, onOpenChange, customer, onSuccess, defaultPipeline = 'recurring' }: CustomerFormProps) {
     const { user } = useAuthStore();
-    const [pipeline, setPipeline] = useState<PipelineType>('recurring');
+    const [pipeline, setPipeline] = useState<PipelineType>(defaultPipeline);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
     const [cementRequired, setCementRequired] = useState<number>(0);
@@ -203,12 +204,12 @@ export function CustomerForm({ open, onOpenChange, customer, onSuccess }: Custom
         } else if (!customer && open) {
             // Reset for new customer
             setFormData({
-                pipeline: 'recurring',
+                pipeline: defaultPipeline,
                 brand_preferences: [],
                 competitor_brands: [],
                 promotions_offered: [],
             });
-            setPipeline('recurring');
+            setPipeline(defaultPipeline);
             setBrandRecords([]);
         }
     }, [customer, open]);

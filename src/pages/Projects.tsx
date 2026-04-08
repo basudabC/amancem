@@ -494,8 +494,7 @@ export function Projects() {
   };
 
   const handleAddNew = () => {
-    setSelectedProject(null);
-    setIsModalOpen(true);
+    navigate('/customers?action=add_project');
   };
 
   const getStageBadge = (percent: number) => {

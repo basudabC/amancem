@@ -10,6 +10,7 @@ import type { Customer, Visit, PipelineType } from '@/types';
 export const useCustomersInfinite = (filters?: {
   pipeline?: PipelineType;
   territoryId?: string;
+  territoryIds?: string[];
   status?: 'active' | 'archived';
   salesRepId?: string;
   searchQuery?: string;
@@ -33,8 +34,12 @@ export const useCustomersInfinite = (filters?: {
       if (filters?.pipeline) {
         query = query.eq('pipeline', filters.pipeline);
       }
-      if (filters?.territoryId) {
+      if (filters?.territoryIds && filters.territoryIds.length > 0) {
+        query = query.in('territory_id', filters.territoryIds);
+      } else if (filters?.territoryId) {
         query = query.eq('territory_id', filters.territoryId);
+      } else if (filters?.territoryIds && filters.territoryIds.length === 0) {
+        return [];
       }
       if (filters?.status) {
         query = query.eq('status', filters.status);

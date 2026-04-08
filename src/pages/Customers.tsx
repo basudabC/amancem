@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useSearchParams } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -147,9 +148,14 @@ function SetTargetDialog({
 
 export function Customers() {
   const { user } = useAuthStore();
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  const initialPipeline = searchParams.get('action') === 'add_project' ? 'one_time' : 'recurring';
+  const showInitialForm = searchParams.get('action') === 'add_project';
+
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState('recurring');
-  const [showCustomerForm, setShowCustomerForm] = useState(false);
+  const [activeTab, setActiveTab] = useState(initialPipeline);
+  const [showCustomerForm, setShowCustomerForm] = useState(showInitialForm);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
@@ -157,6 +163,13 @@ export function Customers() {
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showTargetDialog, setShowTargetDialog] = useState(false); // NEW
+
+  useEffect(() => {
+    if (searchParams.get('action') === 'add_project') {
+      searchParams.delete('action');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // Infinite Scroll & Debounce Search logic
   const debouncedSearch = useDebounce(searchQuery, 500);
@@ -258,6 +271,7 @@ export function Customers() {
         onOpenChange={setShowCustomerForm}
         customer={selectedCustomer}
         onSuccess={handleFormSuccess}
+        defaultPipeline={activeTab as 'recurring' | 'one_time'}
       />
 
       {/* Set Target Dialog */}
