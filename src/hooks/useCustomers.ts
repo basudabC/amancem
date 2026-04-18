@@ -15,7 +15,7 @@ export const useCustomersInfinite = (filters?: {
   salesRepId?: string;
   searchQuery?: string;
 }) => {
-  const PAGE_SIZE = 50; // Load 50 at a time
+  const PAGE_SIZE = 20; // Load 20 at a time
 
   return useInfiniteQuery({
     queryKey: ['customers-infinite', filters],

@@ -573,6 +573,7 @@ export function Visits() {
   } = useCustomersInfinite({
     status: 'active',
     searchQuery: debouncedSearch,
+    salesRepId: priorityFilter === 'mine' ? user?.id : undefined,
   });
 
   if (inView && hasNextPage && !isFetchingNextPage) {
@@ -613,30 +614,37 @@ export function Visits() {
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
       const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
 
-      let query = supabase
-        .from('visits')
-        .select('id, status, scheduled_at, checked_in_at')
-        .gte('scheduled_at', startOfMonth); // This month only
+      const buildQuery = () => {
+        let q = supabase.from('visits').select('id', { count: 'exact', head: true });
+        if (user?.role === 'sales_rep' && user?.id) {
+          q = q.eq('sales_rep_id', user.id);
+        }
+        return q;
+      };
 
-      // Sales reps only see their own visits in stats
-      if (user?.role === 'sales_rep' && user?.id) {
-        query = query.eq('sales_rep_id', user.id);
-      }
-
-      const { data } = await query;
-      const visits = data || [];
-
-      const todayVisits = visits.filter(v =>
-        v.scheduled_at && new Date(v.scheduled_at) >= new Date(startOfToday)
-      );
+      const [
+        resMonthly,
+        resToday,
+        resScheduled,
+        resInProgress,
+        resCompleted,
+        resTodayDone
+      ] = await Promise.all([
+        buildQuery().gte('scheduled_at', startOfMonth),
+        buildQuery().gte('scheduled_at', startOfToday),
+        buildQuery().gte('scheduled_at', startOfMonth).eq('status', 'scheduled'),
+        buildQuery().gte('scheduled_at', startOfMonth).eq('status', 'in_progress'),
+        buildQuery().gte('scheduled_at', startOfMonth).eq('status', 'completed'),
+        buildQuery().gte('scheduled_at', startOfToday).eq('status', 'completed')
+      ]);
 
       return {
-        monthly: visits.length,
-        today: todayVisits.length,
-        scheduled: visits.filter(v => v.status === 'scheduled').length,
-        inProgress: visits.filter(v => v.status === 'in_progress').length,
-        completed: visits.filter(v => v.status === 'completed').length,
-        todayDone: todayVisits.filter(v => v.status === 'completed').length,
+        monthly: resMonthly.count || 0,
+        today: resToday.count || 0,
+        scheduled: resScheduled.count || 0,
+        inProgress: resInProgress.count || 0,
+        completed: resCompleted.count || 0,
+        todayDone: resTodayDone.count || 0,
       };
     },
     enabled: !!user?.id,

@@ -482,6 +482,112 @@ function PreferencesSection() {
 
 // About Section
 function AboutSection() {
+  const [view, setView] = useState<'main' | 'help' | 'privacy' | 'terms' | 'contact'>('main');
+
+  if (view !== 'main') {
+    return (
+      <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+        <button
+          onClick={() => setView('main')}
+          className="flex items-center gap-2 text-[#8B9CB8] hover:text-[#F0F4F8] transition-colors"
+        >
+          <ChevronRight className="w-5 h-5 rotate-180" />
+          Back to About
+        </button>
+
+        {view === 'help' && (
+          <div className="space-y-6">
+            <h3 className="text-xl font-bold text-[#F0F4F8]">Help Center</h3>
+            <div className="grid gap-4">
+              <div className="bg-[#061A3A] p-5 rounded-xl border border-white/5">
+                <h4 className="text-[#3A9EFF] font-semibold mb-2">How to schedule a visit?</h4>
+                <p className="text-[#8B9CB8] text-sm">Navigate to the Visits tab, select a customer, and click the 'Schedule' button to pick a date and time.</p>
+              </div>
+              <div className="bg-[#061A3A] p-5 rounded-xl border border-white/5">
+                <h4 className="text-[#2ECC71] font-semibold mb-2">How to add a new customer?</h4>
+                <p className="text-[#8B9CB8] text-sm">Go to the Customers tab and click on the 'Add Customer' button at the top right of the page.</p>
+              </div>
+              <div className="bg-[#061A3A] p-5 rounded-xl border border-white/5">
+                <h4 className="text-[#D4A843] font-semibold mb-2">Can I use the app offline?</h4>
+                <p className="text-[#8B9CB8] text-sm">Currently, an active internet connection is required to sync data in real-time with the central server.</p>
+              </div>
+              <div className="bg-[#061A3A] p-5 rounded-xl border border-white/5">
+                <h4 className="text-[#9B6BFF] font-semibold mb-2">Need priority support?</h4>
+                <p className="text-[#8B9CB8] text-sm">Reach out via the Contact Support page for fast resolution of critical issues directly from the creator.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {view === 'privacy' && (
+          <div className="space-y-4 text-[#8B9CB8] text-sm leading-relaxed p-6 bg-[#061A3A] rounded-xl border border-white/5">
+            <h3 className="text-xl font-bold text-[#F0F4F8] mb-4">Privacy Policy</h3>
+            <p className="text-[#2ECC71] font-medium text-base mb-4">Strict Ownership & Data Confidentiality</p>
+            <p>This software, Aman Cement CRM, is exclusively owned, developed, and maintained by <strong>Basudab Chowdhury Raj</strong>, an AI & Data Engineer specializing in modern business intelligence, machine learning, and secure scalable solutions.</p>
+            <p>All data processed within this platform is handled with enterprise-grade security protocols. Information tracked—such as GPS coordinates for check-ins, sales metrics, and customer profiles—will only be utilized for internal analytic purposes. Data will never be sold to or exposed to unauthorized third parties.</p>
+            <p>As an <strong>AI & BI Solutions Strategist</strong> building intelligent, data-driven systems, Basudab ensures the employment of advanced encryption and rigorous RLS (Row Level Security) at the database level to maintain complete confidentiality and system integrity.</p>
+          </div>
+        )}
+
+        {view === 'terms' && (
+          <div className="space-y-4 text-[#8B9CB8] text-sm leading-relaxed p-6 bg-[#061A3A] rounded-xl border border-white/5">
+            <h3 className="text-xl font-bold text-[#F0F4F8] mb-4">Terms of Service</h3>
+            <p className="text-[#D4A843] font-medium text-base mb-4">License and Usage</p>
+            <p>This application explicitly belongs to <strong>Basudab Chowdhury Raj</strong>. By operating this CRM, users must abide by standard corporate IT policies regarding data modification and operational integrity.</p>
+            <p>The code architecture, design systems, algorithms, and AI/BI integration pipelines are the strategic intellectual property of Basudab Chowdhury Raj. Any unauthorized reproduction, distribution, or reverse-engineering of this proprietary dashboard is strictly prohibited without direct written consent.</p>
+            <p>System misuse, artificial GPS spoofing, and intentional data corruption will be auto-flagged by internal analytics and may result in immediate access revocation.</p>
+          </div>
+        )}
+
+        {view === 'contact' && (
+          <div className="space-y-6">
+            <h3 className="text-xl font-bold text-[#F0F4F8]">Contact Support</h3>
+            <div className="bg-gradient-to-br from-[#061A3A] to-[#0A2A5C] p-6 rounded-xl border border-white/10 shadow-lg relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-8 opacity-[0.03]">
+                <Shield className="w-48 h-48" />
+              </div>
+              <div className="relative z-10 space-y-6">
+                <div>
+                  <h4 className="text-2xl font-bold text-white mb-1">Basudab Chowdhury Raj</h4>
+                  <p className="text-[#3A9EFF] font-medium">AI, Data Science & BI Solutions Strategist</p>
+                  <p className="text-[#8B9CB8] text-sm mt-2 max-w-lg">
+                    I build intelligent, data-driven systems that automate decisions and shape the future. Expert in LLMs, Computer Vision, Analytics, and scalable business process automation.
+                  </p>
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-4 mt-6">
+                  <div className="flex items-center gap-3 bg-white/5 p-3 rounded-lg border border-white/5">
+                    <Mail className="w-5 h-5 text-[#C41E3A]" />
+                    <a href="mailto:basudab.chowdhory@gmail.com" className="text-[#F0F4F8] hover:text-[#C41E3A] transition-colors text-sm truncate">
+                      basudab.chowdhory@gmail.com
+                    </a>
+                  </div>
+                  <div className="flex items-center gap-3 bg-white/5 p-3 rounded-lg border border-white/5">
+                    <Smartphone className="w-5 h-5 text-[#2ECC71]" />
+                    <a href="tel:+8801750973483" className="text-[#F0F4F8] hover:text-[#2ECC71] transition-colors text-sm">
+                      +88 01750 973483
+                    </a>
+                  </div>
+                  <div className="flex items-center gap-3 bg-white/5 p-3 rounded-lg border border-white/5 sm:col-span-2">
+                    <MapPin className="w-5 h-5 text-[#D4A843]" />
+                    <span className="text-[#F0F4F8] text-sm">
+                      Dhaka, Bangladesh
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 bg-white/5 p-4 rounded-lg border border-white/5 sm:col-span-2 justify-center hover:bg-white/10 transition-colors">
+                    <a href="https://basudabch.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-[#3A9EFF] font-medium text-sm flex items-center gap-2">
+                      <Globe className="w-4 h-4" /> View Full Portfolio & Expertise
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="text-center py-8">
@@ -493,62 +599,58 @@ function AboutSection() {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <a
-          href="#"
-          onClick={(e) => { e.preventDefault(); toast.info('Help center coming soon'); }}
-          className="flex items-center gap-3 p-4 bg-[#061A3A] rounded-xl hover:bg-[#0F3460] transition-colors"
+        <button
+          onClick={() => setView('help')}
+          className="flex items-center gap-3 p-4 bg-[#061A3A] rounded-xl hover:bg-[#0F3460] transition-colors text-left"
         >
           <HelpCircle className="w-5 h-5 text-[#3A9EFF]" />
-          <div>
+          <div className="flex-1">
             <p className="font-medium text-[#F0F4F8]">Help Center</p>
-            <p className="text-sm text-[#8B9CB8]">Get support and documentation</p>
+            <p className="text-sm text-[#8B9CB8]">Get support and docs</p>
           </div>
-          <ChevronRight className="w-5 h-5 text-[#8B9CB8] ml-auto" />
-        </a>
+          <ChevronRight className="w-5 h-5 text-[#8B9CB8]" />
+        </button>
 
-        <a
-          href="#"
-          onClick={(e) => { e.preventDefault(); toast.info('Privacy policy coming soon'); }}
-          className="flex items-center gap-3 p-4 bg-[#061A3A] rounded-xl hover:bg-[#0F3460] transition-colors"
+        <button
+          onClick={() => setView('privacy')}
+          className="flex items-center gap-3 p-4 bg-[#061A3A] rounded-xl hover:bg-[#0F3460] transition-colors text-left"
         >
           <FileText className="w-5 h-5 text-[#2ECC71]" />
-          <div>
+          <div className="flex-1">
             <p className="font-medium text-[#F0F4F8]">Privacy Policy</p>
             <p className="text-sm text-[#8B9CB8]">Read our privacy policy</p>
           </div>
-          <ChevronRight className="w-5 h-5 text-[#8B9CB8] ml-auto" />
-        </a>
+          <ChevronRight className="w-5 h-5 text-[#8B9CB8]" />
+        </button>
 
-        <a
-          href="#"
-          onClick={(e) => { e.preventDefault(); toast.info('Terms of service coming soon'); }}
-          className="flex items-center gap-3 p-4 bg-[#061A3A] rounded-xl hover:bg-[#0F3460] transition-colors"
+        <button
+          onClick={() => setView('terms')}
+          className="flex items-center gap-3 p-4 bg-[#061A3A] rounded-xl hover:bg-[#0F3460] transition-colors text-left"
         >
           <Shield className="w-5 h-5 text-[#D4A843]" />
-          <div>
+          <div className="flex-1">
             <p className="font-medium text-[#F0F4F8]">Terms of Service</p>
-            <p className="text-sm text-[#8B9CB8]">Read our terms and conditions</p>
+            <p className="text-sm text-[#8B9CB8]">Terms and conditions</p>
           </div>
-          <ChevronRight className="w-5 h-5 text-[#8B9CB8] ml-auto" />
-        </a>
+          <ChevronRight className="w-5 h-5 text-[#8B9CB8]" />
+        </button>
 
-        <a
-          href="#"
-          onClick={(e) => { e.preventDefault(); toast.info('Contact support: support@aman-cement.com'); }}
-          className="flex items-center gap-3 p-4 bg-[#061A3A] rounded-xl hover:bg-[#0F3460] transition-colors"
+        <button
+          onClick={() => setView('contact')}
+          className="flex items-center gap-3 p-4 bg-[#061A3A] rounded-xl hover:bg-[#0F3460] transition-colors text-left"
         >
           <Mail className="w-5 h-5 text-[#C41E3A]" />
-          <div>
+          <div className="flex-1">
             <p className="font-medium text-[#F0F4F8]">Contact Support</p>
-            <p className="text-sm text-[#8B9CB8]">Get in touch with our team</p>
+            <p className="text-sm text-[#8B9CB8]">Get in touch</p>
           </div>
-          <ChevronRight className="w-5 h-5 text-[#8B9CB8] ml-auto" />
-        </a>
+          <ChevronRight className="w-5 h-5 text-[#8B9CB8]" />
+        </button>
       </div>
 
-      <div className="text-center text-sm text-[#4A5B7A]">
-        <p>© 2024 Aman Cement Mills Ltd. All rights reserved.</p>
-        <p className="mt-1">Built with care for the Aman Cement sales team.</p>
+      <div className="text-center text-sm text-[#4A5B7A] mt-8">
+        <p>© 2025 Basudab Chowdhury Raj. All rights reserved.</p>
+        <p className="mt-1">Built with care for the Aman Cement team.</p>
       </div>
     </div>
   );
